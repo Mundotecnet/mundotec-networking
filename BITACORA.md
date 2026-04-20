@@ -13,7 +13,10 @@
 | Frase | Acción |
 |-------|--------|
 | `"iniciamos sesión en networking"` | Leer esta bitácora → contexto cargado |
-| `"cierra la sesión"` | Actualizar bitácora + commit |
+| `"iniciamos sesión en mundotec"` | Leer `/home/lroot/mundotec-web/BITACORA.md` |
+| `"iniciamos sesión en reportes"` | Leer `/home/lroot/reportes-syma/BITACORA_TECNICA.md` |
+| `"sistema"` | Leer `/home/lroot/SISTEMA.md` — vista global de todos los proyectos |
+| `"cierra la sesión"` | Actualizar bitácora + commit + push |
 | `"hacer respaldo"` / `"realiza respaldo"` | Ejecutar `bash /home/lroot/scripts/backup_networking.sh` |
 | `"lamb"` | Ejecutar `bash /home/lroot/scripts/generar_documentos.sh` — regenera ambos PDFs y los copia al disco externo |
 
