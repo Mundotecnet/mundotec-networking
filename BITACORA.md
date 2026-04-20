@@ -113,9 +113,9 @@
 git add <archivos>
 git commit -m "tipo: descripción breve"
 
-# 3. Reiniciar si es necesario (actualmente manual con nohup)
-pkill -f "uvicorn main:app.*8002" || true
-nohup uvicorn main:app --host 0.0.0.0 --port 8002 > /tmp/mundotec-networking.log 2>&1 &
+# 3. Reiniciar servicio
+sudo systemctl restart mundotec-networking.service
+sudo systemctl is-active mundotec-networking.service
 ```
 
 ---
@@ -170,7 +170,7 @@ tail -20 /home/lroot/backups/backup_networking.log
 5. **Completitud puertos**: Sin revisar → completo requiere MAC + IP + VLAN + (switch_port si hay switch en el cuarto).
 6. **Excel import**: Cada hoja = un cuarto. Siempre genera exactamente 24 puertos por panel.
 7. **PDF**: Solo ReportLab — sin matplotlib ni networkx.
-8. **Arranque actual**: `nohup uvicorn main:app --host 0.0.0.0 --port 8002` (sin systemd aún).
+8. **Servicio systemd**: `mundotec-networking.service` — arranque automático con el servidor. Log: `journalctl -u mundotec-networking`.
 
 ---
 
