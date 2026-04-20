@@ -15,6 +15,7 @@
 | `"iniciamos sesión en networking"` | Leer esta bitácora → contexto cargado |
 | `"cierra la sesión"` | Actualizar bitácora + commit |
 | `"hacer respaldo"` / `"realiza respaldo"` | Ejecutar `bash /home/lroot/scripts/backup_networking.sh` |
+| `"lamb"` | Ejecutar `bash /home/lroot/scripts/generar_documentos.sh` — regenera ambos PDFs y los copia al disco externo |
 
 ---
 
