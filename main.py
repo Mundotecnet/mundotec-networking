@@ -1,0 +1,226 @@
+"""
+MundoTec Networking — punto de entrada principal.
+Arrancar con: uvicorn main:app --reload
+"""
+import os
+import secrets
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ── Auto-generate missing keys ────────────────────────────────────────────────
+_env_path = Path(".env")
+_changed = False
+
+if not os.getenv("SECRET_KEY"):
+    _key = secrets.token_hex(32)
+    os.environ["SECRET_KEY"] = _key
+    if _env_path.exists():
+        with open(_env_path, "a") as _f:
+            _f.write(f"\nSECRET_KEY={_key}\n")
+    _changed = True
+
+if not os.getenv("FERNET_KEY"):
+    from cryptography.fernet import Fernet as _F
+    _fk = _F.generate_key().decode()
+    os.environ["FERNET_KEY"] = _fk
+    if _env_path.exists():
+        with open(_env_path, "a") as _f:
+            _f.write(f"FERNET_KEY={_fk}\n")
+    _changed = True
+
+# ── App setup ─────────────────────────────────────────────────────────────────
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+
+from database import engine
+import models
+
+models.Base.metadata.create_all(bind=engine)
+
+from auth import jwt as auth_jwt
+from auth import google as auth_google
+from routers import (
+    users, clients, rooms, patch_panels, patch_ports,
+    devices, device_ports, vlans, connections, backups,
+    audit as audit_router, projects,
+)
+
+app = FastAPI(
+    title="MundoTec Networking",
+    description="Sistema de gestión de infraestructura de red",
+    version="1.0.0",
+)
+
+# CORS
+_allowed_origin = os.getenv("ALLOWED_ORIGIN", "http://localhost:8002")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8002", _allowed_origin],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Routers ───────────────────────────────────────────────────────────────────
+PREFIX = "/api"
+for r in [
+    auth_jwt.router,
+    auth_google.router,
+    users.router,
+    clients.router,
+    rooms.router,
+    patch_panels.router,
+    patch_ports.router,
+    devices.router,
+    device_ports.router,
+    vlans.router,
+    connections.router,
+    backups.router,
+    audit_router.router,
+    projects.router,
+]:
+    app.include_router(r, prefix=PREFIX)
+
+# ── Search endpoint ───────────────────────────────────────────────────────────
+from fastapi import Depends, Query as QParam
+from sqlalchemy.orm import Session
+from database import get_db
+from auth.jwt import get_current_user
+
+
+@app.get("/api/search")
+def search(
+    q: str = QParam(..., min_length=2),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(get_current_user),
+):
+    like = f"%{q}%"
+    ports = (
+        db.query(models.PatchPort)
+        .filter(
+            models.PatchPort.label.ilike(like) |
+            models.PatchPort.node_mac.ilike(like) |
+            models.PatchPort.node_ip.ilike(like) |
+            models.PatchPort.node_description.ilike(like)
+        )
+        .limit(30)
+        .all()
+    )
+    devs = (
+        db.query(models.Device)
+        .filter(
+            models.Device.name.ilike(like) |
+            models.Device.mac.ilike(like) |
+            models.Device.ip.ilike(like) |
+            models.Device.hostname.ilike(like)
+        )
+        .limit(30)
+        .all()
+    )
+
+    def port_out(p: models.PatchPort):
+        pp = p.patch_panel
+        room = pp.room if pp else None
+        client = room.client if room else None
+        return {
+            "id": p.id, "label": p.label, "mac": p.node_mac, "ip": p.node_ip,
+            "room": room.name if room else None,
+            "client": client.name if client else None,
+            "client_id": client.id if client else None,
+        }
+
+    def dev_out(d: models.Device):
+        room = d.room
+        client = room.client if room else None
+        return {
+            "id": d.id, "name": d.name, "mac": d.mac, "ip": d.ip,
+            "device_type": d.device_type,
+            "room": room.name if room else None,
+            "client": client.name if client else None,
+            "client_id": client.id if client else None,
+        }
+
+    return {
+        "patch_ports": [port_out(p) for p in ports],
+        "devices": [dev_out(d) for d in devs],
+    }
+
+
+# ── Excel import endpoint ─────────────────────────────────────────────────────
+from fastapi import UploadFile, File, Form
+from services.excel_importer import import_excel
+from services import audit as audit_svc
+from auth.jwt import require_editor
+
+
+@app.post("/api/import/excel")
+async def import_excel_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    client_name: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    content = await file.read()
+    result = import_excel(db, content, client_name, current_user)
+    audit_svc.log(
+        db, "IMPORT_EXCEL", "client",
+        entity_label=client_name,
+        notes=f"rooms={result['rooms_created']} ports={result['ports_imported']}",
+        user=current_user, request=request,
+    )
+    return result
+
+
+# ── Static & SPA ──────────────────────────────────────────────────────────────
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse("static/index.html")
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "mundotec-networking", "version": "1.0.0"}
+
+
+# ── Exception handlers ────────────────────────────────────────────────────────
+from fastapi import HTTPException
+
+
+@app.exception_handler(HTTPException)
+async def http_exc_handler(request: Request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def generic_exc_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
+# ── Startup: create default admin ─────────────────────────────────────────────
+@app.on_event("startup")
+def create_default_admin():
+    from database import SessionLocal
+    from services.crypto import hash_pw
+    db = SessionLocal()
+    try:
+        if db.query(models.User).count() == 0:
+            admin = models.User(
+                username="admin",
+                full_name="Administrador",
+                hashed_password=hash_pw("Admin123!"),
+                role="admin",
+                auth_provider="local",
+                is_active=True,
+            )
+            db.add(admin)
+            db.commit()
+    finally:
+        db.close()

@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MundoTec Network Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --primary: #58a6ff; --green: #3fb950;
+  --red:     #f85149; --orange: #e3b341; --purple: #bc8cff;
+  --text:    #e6edf3; --text2: #8b949e; --text3: #656d76;
+  --radius:  6px; --sidebar: 220px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;font-size:13px}
+a{color:var(--primary);text-decoration:none}
+code,pre{font-family:'IBM Plex Mono',monospace}
+
+/* ── Auth ── */
+#auth{position:fixed;inset:0;background:linear-gradient(135deg,#0d1117 60%,#1a2332);display:flex;align-items:center;justify-content:center;z-index:100}
+.auth-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:40px 36px;width:380px;box-shadow:0 16px 40px rgba(0,0,0,.5)}
+.auth-logo{text-align:center;margin-bottom:28px}
+.auth-logo h1{font-size:20px;font-weight:700;color:var(--primary);letter-spacing:-.3px}
+.auth-logo p{font-size:12px;color:var(--text2);margin-top:4px}
+.fgroup{margin-bottom:14px}
+.fgroup label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:5px}
+.fgroup input,.fgroup select,.fgroup textarea{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-size:13px;outline:none;transition:border-color .15s}
+.fgroup input:focus,.fgroup select:focus,.fgroup textarea:focus{border-color:var(--primary)}
+.fgroup textarea{resize:vertical;min-height:64px}
+#auth-err{background:#2d1b1b;border:1px solid #5a1f1f;color:var(--red);border-radius:var(--radius);padding:8px 10px;font-size:12px;margin-bottom:12px;display:none}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#0d1117}
+.btn-primary:hover{background:#79c0ff}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:#3d1414;color:var(--red);border:1px solid #5a1f1f}
+.btn-danger:hover{background:#4d1a1a}
+.btn-success{background:#1a3a1a;color:var(--green);border:1px solid #1f4a1f}
+.btn-warning{background:#3a2a0a;color:var(--orange);border:1px solid #4a3510}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn-full{width:100%;justify-content:center}
+.btn-google{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);cursor:pointer;font-size:13px;font-family:inherit;margin-top:10px;transition:background .15s}
+.btn-google:hover{background:var(--border)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Layout ── */
+#app{display:none;height:100vh;flex-direction:row}
+#sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto}
+.sb-head{padding:16px 14px;border-bottom:1px solid var(--border)}
+.sb-head h2{font-size:13px;font-weight:700;color:var(--primary);letter-spacing:.3px}
+.sb-head p{font-size:10px;color:var(--text3);margin-top:2px}
+.sb-section{padding:8px 0}
+.sb-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:6px 14px 4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;color:var(--text2);transition:all .15s;font-size:12px;border-left:2px solid transparent}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(88,166,255,.08);color:var(--primary);border-left-color:var(--primary)}
+.nav-badge{font-size:9px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 6px;color:var(--text3);margin-left:auto}
+.sb-foot{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border)}
+.sb-user{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sb-avatar{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#0d1117;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sb-user-name{font-size:11px;font-weight:600;color:var(--text)}
+.sb-user-role{font-size:10px;color:var(--text3)}
+
+#main{flex:1;overflow-y:auto;background:var(--bg)}
+.page{display:none;padding:24px}
+.page.active{display:block}
+
+/* ── Page header ── */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.ph-left h1{font-size:18px;font-weight:700}
+.ph-left p{font-size:12px;color:var(--text2);margin-top:3px}
+.ph-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.breadcrumb{font-size:11px;color:var(--text2);margin-bottom:16px}
+.breadcrumb span{cursor:pointer;color:var(--primary)}
+
+/* ── Cards & Grid ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-head h3{font-size:13px;font-weight:600}
+.card-body{padding:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.stat-num{font-size:28px;font-weight:700;color:var(--primary)}
+.stat-lbl{font-size:11px;color:var(--text2);margin-top:3px}
+.stat-icon{font-size:20px;margin-bottom:6px}
+.clients-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.client-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:border-color .15s}
+.client-card:hover{border-color:var(--primary)}
+.client-card h3{font-size:14px;font-weight:600;margin-bottom:6px}
+.client-meta{font-size:11px;color:var(--text2);margin-bottom:10px}
+.score-bar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin:8px 0}
+.score-fill{height:100%;border-radius:2px;transition:width .3s}
+.score-text{font-size:10px;color:var(--text2);display:flex;justify-content:space-between}
+
+/* ── Table ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--bg3);padding:8px 12px;text-align:left;font-weight:600;color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(88,166,255,.03)}
+.actions{display:flex;gap:4px}
+.empty{text-align:center;padding:40px;color:var(--text3)}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-blue{background:#0c2a4a;color:#58a6ff}
+.badge-green{background:#0a2a0a;color:#3fb950}
+.badge-red{background:#2d1010;color:#f85149}
+.badge-orange{background:#2a1a05;color:#e3b341}
+.badge-purple{background:#1a0a2a;color:#bc8cff}
+.badge-gray{background:var(--bg3);color:var(--text2)}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.search-in{flex:1;min-width:180px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-size:12px;outline:none}
+.search-in:focus{border-color:var(--primary)}
+.filter-sel{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-size:12px;outline:none}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tab{padding:8px 14px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* ── Accordion ── */
+.accordion{margin-bottom:12px}
+.acc-head{background:var(--bg2);border:1px solid var(--border);padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius);transition:border-color .15s}
+.acc-head:hover{border-color:var(--primary)}
+.acc-head.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:var(--border)}
+.acc-head h3{font-size:14px;font-weight:600}
+.acc-head .acc-meta{font-size:11px;color:var(--text2);margin-top:2px}
+.acc-body{display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-bottom-left-radius:var(--radius);border-bottom-right-radius:var(--radius);padding:16px}
+.acc-body.open{display:block}
+
+/* ── Patch Panel Grid ── */
+.pp-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin-top:8px}
+.pp-port{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px;text-align:center;cursor:pointer;position:relative;transition:all .15s;min-height:46px}
+.pp-port:hover{border-color:var(--primary);transform:scale(1.05);z-index:1}
+.pp-num{font-size:14px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1;margin-bottom:2px}
+.pp-lbl{font-size:8px;color:var(--text2);font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.pp-status{position:absolute;bottom:2px;right:3px;font-size:9px;font-weight:700}
+.s-completo .pp-status{color:var(--green)}
+.s-parcial .pp-status,.s-parcial{border-color:#4a3510!important;background:#1a1400}
+.s-libre{border-color:var(--border)!important;opacity:.5}
+.s-prevista{border-color:#2a1050!important;background:#0d0520}
+.s-sin_revisar{border-color:#3d0f0f!important;background:#150505}
+.pp-stats{font-size:10px;color:var(--text2);margin-bottom:6px;font-family:'IBM Plex Mono',monospace}
+
+/* ── Modal ── */
+#mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center}
+#mo.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-lg{width:720px}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);z-index:1}
+.modal-head h3{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:20px}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--bg2)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px}
+
+/* ── Toast ── */
+#toast-ct{position:fixed;bottom:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{padding:10px 14px;border-radius:var(--radius);font-size:12px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.4);animation:toastIn .25s ease;pointer-events:all;display:flex;align-items:center;gap:8px;min-width:220px;max-width:360px}
+.t-success{background:#0a2a0a;border:1px solid #1a4a1a;color:var(--green)}
+.t-error{background:#2d1010;border:1px solid #5a1f1f;color:var(--red)}
+.t-info{background:#0c2a4a;border:1px solid #1a4a6a;color:var(--primary)}
+@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:spin .5s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SVG Diagram ── */
+#diagram-svg{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);overflow:auto}
+
+/* ── Analytics ── */
+.issue-item{padding:8px 12px;border-radius:var(--radius);margin-bottom:6px;display:flex;align-items:flex-start;gap:8px;font-size:12px}
+.issue-error{background:#2d1010;border:1px solid #5a1f1f}
+.issue-warning{background:#2a1a05;border:1px solid #4a3510}
+.issue-info{background:#0c2a4a;border:1px solid #1a4a6a}
+.issue-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0}
+
+/* ── Port modal ── */
+.port-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.suggested{font-size:10px;color:var(--primary);margin-top:3px}
+
+/* ── Credential display ── */
+.cred-field{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px}
+.cred-val{flex:1;font-family:'IBM Plex Mono',monospace;font-size:13px}
+</style>
+</head>
+<body>
+
+<!-- ── Auth ────────────────────────────────────────────────────────────────── -->
+<div id="auth">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <h1>🌐 MUNDOTEC</h1>
+      <p>Network Manager</p>
+    </div>
+    <div id="auth-err"></div>
+    <div class="fgroup">
+      <label>Usuario</label>
+      <input id="l-user" type="text" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="fgroup">
+      <label>Contraseña</label>
+      <input id="l-pass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary btn-full" id="l-btn" onclick="doLogin()">Iniciar sesión</button>
+    <button class="btn-google" id="g-btn" style="display:none" onclick="doGoogleLogin()">
+      <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+      Continuar con Google
+    </button>
+    <p id="pending-msg" style="display:none;text-align:center;font-size:12px;color:var(--orange);margin-top:12px">Tu cuenta está pendiente de activación por el administrador.</p>
+  </div>
+</div>
+
+<!-- ── App ─────────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <aside id="sidebar">
+    <div class="sb-head"><h2>MUNDOTEC</h2><p>Network Manager</p></div>
+    <div class="sb-section">
+      <div class="nav-item active" data-page="dashboard" onclick="nav('dashboard',this)">📊 Dashboard</div>
+      <div class="nav-item" data-page="clients" onclick="nav('clients',this)">🏢 Clientes</div>
+      <div class="nav-item" data-page="search" onclick="nav('search',this)">🔍 Búsqueda</div>
+      <div class="nav-item" data-page="import" onclick="nav('import',this)">📥 Importar Excel</div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Administración</div>
+      <div class="nav-item admin-nav" data-page="audit" onclick="nav('audit',this)">📋 Bitácora</div>
+      <div class="nav-item admin-nav" data-page="users" onclick="nav('users',this)">👥 Usuarios</div>
+      <div class="nav-item" data-page="projects" onclick="nav('projects',this)">📁 Proyectos <span class="nav-badge">Próximamente</span></div>
+    </div>
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="sb-avatar" id="sb-av">A</div>
+        <div><div class="sb-user-name" id="sb-name">Admin</div><div class="sb-user-role" id="sb-role">admin</div></div>
+      </div>
+      <button class="btn btn-secondary btn-sm btn-full" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="p-dashboard">
+      <div class="ph"><div class="ph-left"><h1>Dashboard</h1><p>Resumen del sistema</p></div>
+        <div class="ph-actions"><button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↻ Actualizar</button></div>
+      </div>
+      <div class="stat-grid" id="dash-stats"></div>
+      <div class="card"><div class="card-head"><h3>Clientes recientes</h3></div>
+        <div class="card-body"><div id="dash-recent"></div></div>
+      </div>
+    </div>
+
+    <!-- ── CLIENTS ── -->
+    <div class="page" id="p-clients">
+      <div class="ph"><div class="ph-left"><h1>Clientes</h1><p>Gestión de clientes</p></div>
+        <div class="ph-actions">
+          <input class="search-in" placeholder="Buscar cliente…" oninput="filterClients(this.value)" style="width:200px">
+          <button class="btn btn-primary" onclick="openModal('client')">+ Nuevo cliente</button>
+        </div>
+      </div>
+      <div class="clients-grid" id="clients-grid"></div>
+    </div>
+
+    <!-- ── CLIENT DETAIL ── -->
+    <div class="page" id="p-client-detail">
+      <div class="breadcrumb"><span onclick="nav('clients')">Clientes</span> › <span id="cd-name-bc"></span></div>
+      <div class="ph">
+        <div class="ph-left"><h1 id="cd-title"></h1><p id="cd-subtitle"></p></div>
+        <div class="ph-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openModal('client',currentClientId)">✏️ Editar</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadPDF()">📄 PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="openModal('room',null,{client_id:currentClientId})">+ Cuarto</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" id="cd-info" style="display:flex;gap:24px;flex-wrap:wrap"></div>
+      </div>
+      <div id="cd-rooms"></div>
+    </div>
+
+    <!-- ── SEARCH ── -->
+    <div class="page" id="p-search">
+      <div class="ph"><div class="ph-left"><h1>Búsqueda</h1><p>Buscar puertos y equipos</p></div></div>
+      <div class="fgroup" style="max-width:500px">
+        <input class="search-in" id="search-q" placeholder="Buscar IP, MAC, etiqueta de puerto, nombre de equipo…" oninput="doSearch(this.value)" style="width:100%">
+      </div>
+      <div id="search-results"></div>
+    </div>
+
+    <!-- ── IMPORT ── -->
+    <div class="page" id="p-import">
+      <div class="ph"><div class="ph-left"><h1>Importar Excel</h1><p>Cargar datos desde archivo .xlsx</p></div></div>
+      <div class="card" style="max-width:520px">
+        <div class="card-body">
+          <div class="fgroup"><label>Nombre del cliente</label><input id="imp-client" placeholder="Ej: Empresa XYZ"></div>
+          <div class="fgroup"><label>Archivo Excel (.xlsx)</label>
+            <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s" onclick="document.getElementById('imp-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleDrop(event)">
+              <div id="drop-text">📂 Arrastra el archivo aquí o haz clic para seleccionar</div>
+            </div>
+            <input id="imp-file" type="file" accept=".xlsx" style="display:none" onchange="handleFileSelect(this)">
+          </div>
+          <button class="btn btn-primary" onclick="doImport()" id="imp-btn">Importar</button>
+          <div id="imp-result" style="margin-top:14px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AUDIT ── -->
+    <div class="page" id="p-audit">
+      <div class="ph"><div class="ph-left"><h1>Bitácora</h1><p>Registro de actividad</p></div>
+        <div class="ph-actions">
+          <button class="btn btn-secondary btn-sm" onclick="exportAudit()">⬇️ CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadAudit()">↻ Actualizar</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input class="search-in" id="audit-search" placeholder="Buscar…" style="width:180px" oninput="loadAudit()">
+        <select class="filter-sel" id="audit-entity" onchange="loadAudit()">
+          <option value="">Toda entidad</option>
+          <option>client</option><option>room</option><option>device</option>
+          <option>patch_panel</option><option>patch_port</option><option>vlan</option>
+          <option>connection</option><option>backup</option><option>user</option>
+        </select>
+        <select class="filter-sel" id="audit-action" onchange="loadAudit()">
+          <option value="">Toda acción</option>
+          <option>CREATE</option><option>UPDATE</option><option>DELETE</option>
+          <option>LOGIN</option><option>VIEW_CREDENTIALS</option>
+          <option>EXPORT_PDF</option><option>IMPORT_EXCEL</option>
+        </select>
+      </div>
+      <div class="card"><div class="table-wrap">
+        <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Etiqueta</th><th>IP</th></tr></thead>
+        <tbody id="audit-tb"></tbody></table>
+      </div></div>
+    </div>
+
+    <!-- ── USERS ── -->
+    <div class="page" id="p-users">
+      <div class="ph"><div class="ph-left"><h1>Usuarios</h1><p>Control de acceso</p></div>
+        <div class="ph-actions"><button class="btn btn-primary" onclick="openModal('user')">+ Nuevo usuario</button></div>
+      </div>
+      <div class="card"><div class="table-wrap">
+        <table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Proveedor</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="users-tb"></tbody></table>
+      </div></div>
+    </div>
+
+    <!-- ── PROJECTS ── -->
+    <div class="page" id="p-projects">
+      <div class="ph"><div class="ph-left"><h1>Proyectos</h1></div></div>
+      <div class="card"><div class="card-body" style="text-align:center;padding:60px">
+        <div style="font-size:40px;margin-bottom:16px">🚧</div>
+        <h2 style="color:var(--text2);font-size:18px">Módulo en desarrollo</h2>
+        <p style="color:var(--text3);margin-top:8px">Disponible próximamente</p>
+      </div></div>
+    </div>
+  </main>
+</div>
+
+<!-- ── Modal ───────────────────────────────────────────────────────────────── -->
+<div id="mo"><div class="modal" id="modal-box">
+  <div class="modal-head">
+    <h3 id="modal-title">Formulario</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body" id="modal-body"></div>
+  <div class="modal-foot" id="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-primary" id="modal-save" onclick="submitModal()">Guardar</button>
+  </div>
+</div></div>
+
+<!-- ── Toast ───────────────────────────────────────────────────────────────── -->
+<div id="toast-ct"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════ STATE
+const API = '';
+let token = localStorage.getItem('mn_token');
+let currentUser = null;
+let currentClientId = null;
+let modalCfg = null;
+let _searchTimer = null;
+let _impFile = null;
+
+// ═══════════════════════════════════════════════════════════ UTILS
+function toast(msg, type='info'){
+  const el = document.createElement('div');
+  el.className = `toast t-${type}`;
+  el.innerHTML = `<span>${type==='success'?'✓':type==='error'?'✗':'ℹ'}</span> ${msg}`;
+  document.getElementById('toast-ct').appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+
+async function api(method, path, data=null, raw=false){
+  const opts = { method, headers: {} };
+  if(token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if(data && !raw){
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(data);
+  } else if(raw){
+    opts.body = data;
+  }
+  const res = await fetch(API+path, opts);
+  if(res.status===401){logout();return null;}
+  if(!res.ok){
+    const err = await res.json().catch(()=>({detail:res.statusText}));
+    throw new Error(err.detail||'Error desconocido');
+  }
+  if(res.status===204||res.headers.get('content-length')==='0') return null;
+  return res.json();
+}
+
+function fmtDate(d){ return d ? d.substring(0,19).replace('T',' ') : '-'; }
+
+function scoreFill(score){
+  const color = score>=80?'var(--green)':score>=50?'var(--orange)':'var(--red)';
+  return `<div class="score-bar"><div class="score-fill" style="width:${score}%;background:${color}"></div></div>`;
+}
+
+function roleBadge(r){
+  const m={admin:'badge-red',tecnico:'badge-orange',readonly:'badge-gray'};
+  return `<span class="badge ${m[r]||'badge-gray'}">${r}</span>`;
+}
+
+function actionBadge(a){
+  const m={CREATE:'badge-green',UPDATE:'badge-blue',DELETE:'badge-red',
+           VIEW_CREDENTIALS:'badge-orange',LOGIN:'badge-gray',
+           EXPORT_PDF:'badge-purple',IMPORT_EXCEL:'badge-purple',
+           LOGIN_GOOGLE:'badge-blue'};
+  return `<span class="badge ${m[a]||'badge-gray'}">${a}</span>`;
+}
+
+function statusIcon(s){
+  return {completo:'<span style="color:var(--green)">✓</span>',
+          parcial:'<span style="color:var(--orange)">!</span>',
+          libre:'<span style="color:var(--text3)">—</span>',
+          prevista:'<span style="color:var(--purple)">~</span>',
+          sin_revisar:'<span style="color:var(--red)">?</span>'}[s]||s;
+}
+
+// ═══════════════════════════════════════════════════════════ AUTH
+async function doLogin(){
+  const user = document.getElementById('l-user').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  if(!user||!pass){showAuthErr('Completa todos los campos');return;}
+  const btn = document.getElementById('l-btn');
+  btn.innerHTML='<span class="spinner"></span> Ingresando…';btn.disabled=true;
+  try{
+    const fd = new FormData();
+    fd.append('username',user); fd.append('password',pass);
+    const res = await fetch(API+'/api/auth/login',{method:'POST',body:fd});
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const data = await res.json();
+    token = data.access_token;
+    localStorage.setItem('mn_token',token);
+    currentUser = data.user;
+    initApp();
+  }catch(e){showAuthErr(e.message);}
+  finally{btn.innerHTML='Iniciar sesión';btn.disabled=false;}
+}
+
+function showAuthErr(msg){
+  const el=document.getElementById('auth-err');
+  el.textContent=msg; el.style.display='block';
+}
+
+async function doGoogleLogin(){
+  try{const d=await api('GET','/api/auth/google/url');window.location.href=d.url;}
+  catch(e){showAuthErr('Google OAuth no está configurado');}
+}
+
+function logout(){
+  token=null; currentUser=null;
+  localStorage.removeItem('mn_token');
+  document.getElementById('app').style.display='none';
+  document.getElementById('auth').style.display='flex';
+  document.getElementById('auth-err').style.display='none';
+}
+
+async function initApp(){
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').style.display='flex';
+  if(!currentUser){
+    try{currentUser=await api('GET','/api/auth/me');}
+    catch{logout();return;}
+  }
+  document.getElementById('sb-name').textContent=currentUser.full_name||currentUser.username;
+  document.getElementById('sb-role').textContent=currentUser.role;
+  document.getElementById('sb-av').textContent=(currentUser.full_name||currentUser.username||'?')[0].toUpperCase();
+  if(currentUser.role!=='admin'){
+    document.querySelectorAll('.admin-nav').forEach(el=>el.style.display='none');
+  }
+  // Check google auth
+  try{
+    const cfg=await api('GET','/api/auth/config');
+    if(cfg?.google_auth_enabled) document.getElementById('g-btn').style.display='flex';
+  }catch{}
+  loadDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════ NAV
+function nav(page, el=null){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg = document.getElementById('p-'+page);
+  if(pg) pg.classList.add('active');
+  if(el) el.classList.add('active');
+  else {
+    const found = document.querySelector(`[data-page="${page}"]`);
+    if(found) found.classList.add('active');
+  }
+  const loaders={
+    dashboard:loadDashboard, clients:loadClients,
+    audit:loadAudit, users:loadUsers,
+    search:()=>{document.getElementById('search-q').focus();},
+  };
+  loaders[page]?.();
+}
+
+// ═══════════════════════════════════════════════════════════ DASHBOARD
+async function loadDashboard(){
+  try{
+    const [clients,devs] = await Promise.all([
+      api('GET','/api/clients'),
+      api('GET','/api/search?q=a').catch(()=>({patch_ports:[],devices:[]})),
+    ]);
+    const cl = clients||[];
+    const totalRooms = cl.reduce((s,c)=>s+(c.room_count||0),0);
+    const totalPorts = cl.reduce((s,c)=>s+(c.port_count||0),0);
+    const avgScore = cl.length ? (cl.reduce((s,c)=>s+(c.score||0),0)/cl.length).toFixed(1) : 0;
+
+    document.getElementById('dash-stats').innerHTML=`
+      <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-num">${cl.length}</div><div class="stat-lbl">Clientes</div></div>
+      <div class="stat-card"><div class="stat-icon">🚪</div><div class="stat-num">${totalRooms}</div><div class="stat-lbl">Cuartos</div></div>
+      <div class="stat-card"><div class="stat-icon">🔌</div><div class="stat-num">${totalPorts}</div><div class="stat-lbl">Puertos PP</div></div>
+      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-num">${avgScore}%</div><div class="stat-lbl">Completitud promedio</div></div>
+    `;
+    const recent = cl.slice(0,6);
+    document.getElementById('dash-recent').innerHTML = recent.map(c=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="cursor:pointer;color:var(--primary)" onclick="openClientDetail(${c.id},'${c.name.replace(/'/g,"\\'")}')"><strong>${c.name}</strong></span>
+        <div style="width:200px;text-align:right">
+          ${scoreFill(c.score)}
+          <div class="score-text"><span>${c.room_count} cuartos</span><span>${c.score}%</span></div>
+        </div>
+      </div>
+    `).join('') || '<div class="empty">Sin clientes registrados</div>';
+  }catch(e){toast(e.message,'error');}
+}
+
+// ═══════════════════════════════════════════════════════════ CLIENTS
+let _allClients = [];
+async function loadClients(){
+  try{
+    _allClients = await api('GET','/api/clients')||[];
+    renderClientsGrid(_allClients);
+  }catch(e){toast(e.message,'error');}
+}
+
+function renderClientsGrid(list){
+  document.getElementById('clients-grid').innerHTML = list.length ? list.map(c=>`
+    <div class="client-card" onclick="openClientDetail(${c.id},'${c.name.replace(/'/g,"\\'")}')">
+      <h3>${c.name}</h3>
+      <div class="client-meta">${[c.phone,c.email].filter(Boolean).join(' · ')||'Sin contacto registrado'}</div>
+      ${scoreFill(c.score)}
+      <div class="score-text">
+        <span>${c.room_count} cuartos · ${c.port_count} puertos</span>
+        <span style="color:${c.score>=80?'var(--green)':c.score>=50?'var(--orange)':'var(--red)'}">${c.score}%</span>
+      </div>
+    </div>
+  `).join('') : '<div class="empty" style="grid-column:1/-1">No hay clientes. Crea el primero.</div>';
+}
+
+function filterClients(q){
+  renderClientsGrid(_allClients.filter(c=>c.name.toLowerCase().includes(q.toLowerCase())));
+}
+
+// ═══════════════════════════════════════════════════════════ CLIENT DETAIL
+async function openClientDetail(id, name){
+  currentClientId = id;
+  nav('client-detail');
+  document.getElementById('cd-name-bc').textContent = name;
+  document.getElementById('cd-title').textContent = name;
+  document.getElementById('cd-subtitle').textContent = 'Cargando…';
+  try{
+    const [client, analytics] = await Promise.all([
+      api('GET',`/api/clients/${id}`),
+      api('GET',`/api/clients/${id}/analytics`),
+    ]);
+    document.getElementById('cd-title').textContent = client.name;
+    document.getElementById('cd-subtitle').textContent =
+      `${analytics.by_room.length} cuartos · Score: ${analytics.score}% · `+
+      `${analytics.errors.length} errores · ${analytics.warnings.length} advertencias`;
+
+    document.getElementById('cd-info').innerHTML = `
+      ${client.phone?`<div><span style="color:var(--text2)">📞</span> ${client.phone}</div>`:''}
+      ${client.email?`<div><span style="color:var(--text2)">✉️</span> ${client.email}</div>`:''}
+      ${client.address?`<div><span style="color:var(--text2)">📍</span> ${client.address}</div>`:''}
+      ${client.contact?`<div><span style="color:var(--text2)">👤</span> ${client.contact}</div>`:''}
+      <div style="margin-left:auto;width:220px">
+        ${scoreFill(analytics.score)}
+        <div class="score-text"><span>Completitud global</span><span>${analytics.score}%</span></div>
+      </div>
+    `;
+    await loadRoomsDetail(id, analytics);
+  }catch(e){toast(e.message,'error');}
+}
+
+async function loadRoomsDetail(clientId, analytics){
+  const rooms = await api('GET',`/api/clients/${clientId}/rooms`)||[];
+  const container = document.getElementById('cd-rooms');
+  container.innerHTML = '';
+  if(!rooms.length){
+    container.innerHTML='<div class="empty">Sin cuartos. Agrega el primero con "+ Cuarto".</div>';
+    return;
+  }
+  for(const room of rooms){
+    const roomAnalytics = analytics.by_room.find(r=>r.room_id===room.id)||{score:0,issues:[]};
+    const acc = document.createElement('div');
+    acc.className='accordion';
+    acc.innerHTML=`
+      <div class="acc-head" onclick="toggleAcc(this)">
+        <div>
+          <h3>🚪 ${room.name}</h3>
+          <div class="acc-meta">${room.location||''} · Score: ${roomAnalytics.score}% · ${roomAnalytics.issues.length} issues</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openModal('room',${room.id})">✏️</button>
+          <span id="acc-arrow-${room.id}">▼</span>
+        </div>
+      </div>
+      <div class="acc-body" id="room-body-${room.id}">
+        <div class="tabs" id="room-tabs-${room.id}">
+          <div class="tab active" onclick="showRoomTab(${room.id},'activos',this)">Activos de Red</div>
+          <div class="tab" onclick="showRoomTab(${room.id},'pasivos',this)">Pasivos de Red</div>
+          <div class="tab" onclick="showRoomTab(${room.id},'conexiones',this)">Interconexiones</div>
+          <div class="tab" onclick="showRoomTab(${room.id},'diagrama',this)">Diagrama</div>
+          <div class="tab" onclick="showRoomTab(${room.id},'analitica',this)">Analítica</div>
+        </div>
+        <div id="room-tab-activos-${room.id}"><div class="empty">Cargando…</div></div>
+        <div id="room-tab-pasivos-${room.id}" style="display:none"></div>
+        <div id="room-tab-conexiones-${room.id}" style="display:none"></div>
+        <div id="room-tab-diagrama-${room.id}" style="display:none"></div>
+        <div id="room-tab-analitica-${room.id}" style="display:none"></div>
+      </div>
+    `;
+    container.appendChild(acc);
+    loadRoomTabActivos(room.id);
+  }
+}
+
+function toggleAcc(head){
+  head.classList.toggle('open');
+  const body = head.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+function showRoomTab(roomId, tab, el){
+  const tabs = ['activos','pasivos','conexiones','diagrama','analitica'];
+  tabs.forEach(t=>{
+    const el2=document.getElementById(`room-tab-${t}-${roomId}`);
+    if(el2) el2.style.display='none';
+  });
+  document.getElementById(`room-tab-${tab}-${roomId}`).style.display='block';
+  const tabsContainer = document.getElementById(`room-tabs-${roomId}`);
+  tabsContainer.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const loaders = {
+    activos:()=>loadRoomTabActivos(roomId),
+    pasivos:()=>loadRoomTabPasivos(roomId),
+    conexiones:()=>loadRoomTabConexiones(roomId),
+    diagrama:()=>loadRoomTabDiagrama(roomId),
+    analitica:()=>loadRoomTabAnalitica(roomId),
+  };
+  loaders[tab]?.();
+}
+
+async function loadRoomTabActivos(roomId){
+  const el = document.getElementById(`room-tab-activos-${roomId}`);
+  try{
+    const [devData, vlans] = await Promise.all([
+      api('GET',`/api/rooms/${roomId}/devices`),
+      api('GET',`/api/rooms/${roomId}/vlans`),
+    ]);
+    const {activo_red=[], activo_final=[]} = devData||{};
+    let html='<div class="tabs">';
+    html+='<div class="tab active" onclick="showSubTab(\'red\',\'final\',\'vlans\',this)">Equipos de Red</div>';
+    html+='<div class="tab" onclick="showSubTab(\'final\',\'red\',\'vlans\',this)">Equipos Finales</div>';
+    html+='<div class="tab" onclick="showSubTab(\'vlans\',\'red\',\'final\',this)">VLANs</div></div>';
+    html+=`<div id="st-red-${roomId}">`;
+    html+=`<div style="margin-bottom:8px;display:flex;justify-content:flex-end;gap:6px">
+      <button class="btn btn-primary btn-sm" onclick="openModal('device',null,{room_id:${roomId},category:'activo_red'})">+ Equipo de red</button>
+    </div>`;
+    html+=renderDeviceTable(activo_red, roomId, vlans||[]);
+    html+='</div>';
+    html+=`<div id="st-final-${roomId}" style="display:none">`;
+    html+=`<div style="margin-bottom:8px;display:flex;justify-content:flex-end;gap:6px">
+      <button class="btn btn-primary btn-sm" onclick="openModal('device',null,{room_id:${roomId},category:'activo_final'})">+ Equipo final</button>
+    </div>`;
+    html+=renderDeviceTable(activo_final, roomId, vlans||[]);
+    html+='</div>';
+    html+=`<div id="st-vlans-${roomId}" style="display:none">`;
+    html+=`<div style="margin-bottom:8px;display:flex;justify-content:flex-end">
+      <button class="btn btn-primary btn-sm" onclick="openModal('vlan',null,{room_id:${roomId}})">+ VLAN</button>
+    </div>`;
+    html+=renderVlanTable(vlans||[], roomId);
+    html+='</div>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function showSubTab(show, ...hide){
+  const container = event.target.closest('[id^="room-tab-activos-"]');
+  if(!container) return;
+  const roomId = container.id.split('-').pop();
+  [show,...hide].forEach(t=>{
+    const el = document.getElementById(`st-${t}-${roomId}`);
+    if(el) el.style.display = t===show ? 'block' : 'none';
+  });
+  container.querySelectorAll('.tabs:first-of-type .tab').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function renderDeviceTable(devs, roomId, vlans){
+  if(!devs.length) return '<div class="empty">Sin equipos registrados</div>';
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Nombre</th><th>Tipo</th><th>IP</th><th>MAC</th><th>Marca/Modelo</th><th>Creds</th><th>Acciones</th></tr></thead>
+    <tbody>${devs.map(d=>`<tr>
+      <td><strong>${d.name}</strong>${d.hostname?`<br><small style="color:var(--text3)">${d.hostname}</small>`:''}</td>
+      <td><span class="badge badge-blue">${d.device_type}</span></td>
+      <td><code>${d.ip||'-'}</code></td>
+      <td><code style="font-size:10px">${d.mac||'-'}</code></td>
+      <td>${[d.brand,d.model].filter(Boolean).join(' ')||'-'}</td>
+      <td>${d.has_credentials?`<button class="btn btn-warning btn-sm" onclick="viewCreds(${d.id},'${d.name.replace(/'/g,"\\'")}')">🔑 Ver</button>`:'—'}</td>
+      <td><div class="actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('device',${d.id})">✏️</button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('backup',null,{device_id:${d.id},device_name:'${d.name.replace(/'/g,"\\'")}'})" title="Backups">💾</button>
+        <button class="btn btn-danger btn-sm" onclick="delItem('device',${d.id},'${d.name.replace(/'/g,"\\'")}',()=>loadRoomTabActivos(${roomId}))">🗑️</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderVlanTable(vlans, roomId){
+  if(!vlans.length) return '<div class="empty">Sin VLANs registradas</div>';
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>ID VLAN</th><th>Nombre</th><th>Subred</th><th>Gateway</th><th>DHCP</th><th>Acciones</th></tr></thead>
+    <tbody>${vlans.map(v=>`<tr>
+      <td><strong>${v.vlan_id}</strong></td>
+      <td>${v.name}</td>
+      <td><code>${v.subnet||'-'}</code></td>
+      <td><code>${v.gateway||'-'}</code></td>
+      <td>${v.dhcp?'<span class="badge badge-green">Sí</span>':'No'}</td>
+      <td><div class="actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('vlan',${v.id},null,${v.room_id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="delVlan(${v.room_id},${v.id},'VLAN ${v.vlan_id}',()=>loadRoomTabActivos(${roomId}))">🗑️</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+async function loadRoomTabPasivos(roomId){
+  const el=document.getElementById(`room-tab-pasivos-${roomId}`);
+  try{
+    const room = await api('GET',`/api/rooms/${roomId}`);
+    const panels = await api('GET',`/api/rooms/${roomId}/patch-panels`)||[];
+    const roomHasSwitch = !!(room.switch_ip||room.switch_mac||room.switch_model);
+    let html=`<div style="margin-bottom:12px;display:flex;justify-content:flex-end">
+      <button class="btn btn-primary btn-sm" onclick="openModal('patch_panel',null,{room_id:${roomId}})">+ Patch Panel</button>
+    </div>`;
+    for(const pp of panels){
+      const ports = await api('GET',`/api/patch-panels/${pp.id}/ports`)||[];
+      const sc = calcPPScore(ports, roomHasSwitch);
+      html+=`<div style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div>
+            <strong>${pp.name}</strong>
+            <span style="color:var(--text2);font-size:11px"> · ${[pp.brand,pp.model].filter(Boolean).join(' ')||''} · Piso ${pp.floor} · ${pp.format}</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('patch_panel',${pp.id})">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="delItem('patch_panel',${pp.id},'${pp.name.replace(/'/g,"\\'")}',()=>loadRoomTabPasivos(${roomId}))">🗑️</button>
+          </div>
+        </div>
+        <div class="pp-stats">✓ ${sc.completos} · ! ${sc.parciales} · ? ${sc.sin_revisar} · — ${sc.libres} · ~ ${sc.previstas} | ${sc.score}%</div>
+        <div class="pp-grid">${ports.sort((a,b)=>a.number-b.number).map(p=>`
+          <div class="pp-port s-${p.completeness_status||'sin_revisar'}" onclick="openModal('port',${p.id})" title="${portTooltip(p)}" oncontextmenu="portContextMenu(event,${p.id},${pp.id},${roomId})">
+            <div class="pp-num">${p.number}</div>
+            <div class="pp-lbl">${p.label||''}</div>
+            <div class="pp-status">${{completo:'✓',parcial:'!',libre:'—',prevista:'~',sin_revisar:'?'}[p.completeness_status]||'?'}</div>
+          </div>
+        `).join('')}</div>
+      </div>`;
+    }
+    if(!panels.length) html='<div class="empty">Sin patch panels. Agrega el primero.</div>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function calcPPScore(ports, roomHasSwitch){
+  const s={completo:0,parcial:0,sin_revisar:0,libre:0,prevista:0};
+  ports.forEach(p=>{
+    const cs = p.completeness_status||'sin_revisar';
+    if(cs in s) s[cs]++;
+  });
+  const evaluable=24-s.libre-s.prevista;
+  const score = evaluable>0 ? Math.round(s.completo/evaluable*100) : 100;
+  return {...s, evaluable, score};
+}
+
+function portTooltip(p){
+  const lines=[];
+  if(p.label) lines.push(`Etiqueta: ${p.label}`);
+  if(p.node_type) lines.push(`Tipo: ${p.node_type}`);
+  if(p.node_ip) lines.push(`IP: ${p.node_ip}`);
+  if(p.node_mac) lines.push(`MAC: ${p.node_mac}`);
+  if(p.completeness_status) lines.push(`Estado: ${p.completeness_status}`);
+  return lines.join(' | ');
+}
+
+function portContextMenu(event, portId, ppId, roomId){
+  event.preventDefault();
+  const existing = document.getElementById('ctx-menu');
+  if(existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id='ctx-menu';
+  menu.style.cssText=`position:fixed;top:${event.clientY}px;left:${event.clientX}px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);z-index:1000;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,.4)`;
+  menu.innerHTML=`
+    <div onclick="confirmPort(${portId},'libre',${roomId})" style="padding:8px 12px;cursor:pointer;font-size:12px;color:var(--text2)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">— Marcar libre</div>
+    <div onclick="confirmPort(${portId},'prevista',${roomId})" style="padding:8px 12px;cursor:pointer;font-size:12px;color:var(--purple)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">~ Marcar prevista</div>
+    <div onclick="openModal('port',${portId});document.getElementById('ctx-menu')?.remove()" style="padding:8px 12px;cursor:pointer;font-size:12px;color:var(--primary)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">✏️ Editar</div>
+  `;
+  document.body.appendChild(menu);
+  document.addEventListener('click',()=>menu.remove(),{once:true});
+}
+
+async function confirmPort(portId, nodeType, roomId){
+  document.getElementById('ctx-menu')?.remove();
+  try{
+    await api('POST',`/api/patch-ports/${portId}/confirm`,{node_type:nodeType,confirmation_notes:''});
+    toast(`Puerto marcado como ${nodeType}`,'success');
+    loadRoomTabPasivos(roomId);
+  }catch(e){toast(e.message,'error');}
+}
+
+async function loadRoomTabConexiones(roomId){
+  const el=document.getElementById(`room-tab-conexiones-${roomId}`);
+  try{
+    const conns = await api('GET',`/api/rooms/${roomId}/connections`)||[];
+    let html=`<div style="margin-bottom:12px;display:flex;justify-content:flex-end">
+      <button class="btn btn-primary btn-sm" onclick="openModal('connection',null,{room_id:${roomId}})">+ Conexión</button>
+    </div>`;
+    if(conns.length){
+      html+=conns.map(c=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;font-size:12px">
+          <div>
+            <code style="color:var(--primary)">${c.chain||''}</code>
+            ${c.description?`<div style="color:var(--text2);font-size:11px;margin-top:2px">${c.description}</div>`:''}
+          </div>
+          <div class="actions">
+            <button class="btn btn-danger btn-sm" onclick="delItem('connection',${c.id},'conexión #${c.id}',()=>loadRoomTabConexiones(${roomId}))">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    } else html+='<div class="empty">Sin interconexiones registradas</div>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function loadRoomTabDiagrama(roomId){
+  const el=document.getElementById(`room-tab-diagrama-${roomId}`);
+  el.innerHTML=`<div style="color:var(--text2);text-align:center;padding:32px;font-size:12px">
+    Diagrama SVG generado dinámicamente — disponible en el PDF descargable.
+    <br><br><button class="btn btn-secondary btn-sm" onclick="downloadPDF()">📄 Descargar PDF con diagrama</button>
+  </div>`;
+}
+
+async function loadRoomTabAnalitica(roomId){
+  const el=document.getElementById(`room-tab-analitica-${roomId}`);
+  try{
+    const analytics = await api('GET',`/api/clients/${currentClientId}/analytics`);
+    const roomData = analytics.by_room.find(r=>r.room_id===roomId);
+    if(!roomData){el.innerHTML='<div class="empty">Sin datos</div>';return;}
+    const fill = `<div class="score-bar"><div class="score-fill" style="width:${roomData.score}%;background:${roomData.score>=80?'var(--green)':roomData.score>=50?'var(--orange)':'var(--red)'}"></div></div>`;
+    let html=`<div style="margin-bottom:16px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Completitud: ${roomData.score}%</div>
+      ${fill}
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">
+        ✓ ${roomData.completos} completos · ! ${roomData.parciales} parciales ·
+        ? ${roomData.sin_revisar} sin revisar · — ${roomData.libres} libres · ~ ${roomData.previstas} previstas
+      </div>
+    </div>`;
+    const issues = roomData.issues||[];
+    if(issues.length){
+      const byLevel = {error:[],warning:[],info:[]};
+      issues.forEach(i=>byLevel[i.level]?.push(i));
+      if(byLevel.error.length) html+=`<div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px">🔴 ERRORES</div>`;
+      byLevel.error.forEach(i=>{html+=`<div class="issue-item issue-error"><span class="issue-badge" style="background:#5a1f1f;color:var(--red)">${i.code}</span> ${i.detail||i.label||''}</div>`;});
+      if(byLevel.warning.length) html+=`<div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:6px;margin-top:10px">🟠 ADVERTENCIAS</div>`;
+      byLevel.warning.forEach(i=>{html+=`<div class="issue-item issue-warning"><span class="issue-badge" style="background:#4a3510;color:var(--orange)">${i.code}</span> ${i.label||''} ${i.fields?`(faltan: ${i.fields.join(', ')})`:''}</div>`;});
+      if(byLevel.info.length) html+=`<div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:6px;margin-top:10px">🟡 INFO</div>`;
+      byLevel.info.forEach(i=>{html+=`<div class="issue-item issue-info"><span class="issue-badge" style="background:#0c2a4a;color:var(--primary)">${i.code}</span> ${i.label||''}</div>`;});
+    } else html+='<div class="empty">✅ Sin issues en este cuarto</div>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function downloadPDF(){
+  if(!currentClientId) return;
+  window.open(`${API}/api/clients/${currentClientId}/report.pdf`, '_blank');
+}
+
+// ═══════════════════════════════════════════════════════════ SEARCH
+function doSearch(q){
+  clearTimeout(_searchTimer);
+  if(q.length<2){document.getElementById('search-results').innerHTML='';return;}
+  _searchTimer = setTimeout(async()=>{
+    try{
+      const data = await api('GET',`/api/search?q=${encodeURIComponent(q)}`);
+      const ports = data.patch_ports||[];
+      const devs = data.devices||[];
+      let html='';
+      if(ports.length){
+        html+=`<div class="section-label" style="margin-top:12px">Puertos PP (${ports.length})</div>`;
+        html+=`<div class="table-wrap"><table><thead><tr><th>Etiqueta</th><th>IP</th><th>MAC</th><th>Cuarto</th><th>Cliente</th></tr></thead><tbody>`;
+        html+=ports.map(p=>`<tr>
+          <td><code>${p.label||'-'}</code></td>
+          <td><code>${p.ip||'-'}</code></td>
+          <td><code style="font-size:10px">${p.mac||'-'}</code></td>
+          <td>${p.room||'-'}</td>
+          <td><span style="cursor:pointer;color:var(--primary)" onclick="openClientDetail(${p.client_id},'${(p.client||'').replace(/'/g,"\\'")}') ">${p.client||'-'}</span></td>
+        </tr>`).join('');
+        html+=`</tbody></table></div>`;
+      }
+      if(devs.length){
+        html+=`<div class="section-label" style="margin-top:16px">Equipos (${devs.length})</div>`;
+        html+=`<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Tipo</th><th>IP</th><th>MAC</th><th>Cuarto</th><th>Cliente</th></tr></thead><tbody>`;
+        html+=devs.map(d=>`<tr>
+          <td><strong>${d.name}</strong></td>
+          <td><span class="badge badge-blue">${d.device_type}</span></td>
+          <td><code>${d.ip||'-'}</code></td>
+          <td><code style="font-size:10px">${d.mac||'-'}</code></td>
+          <td>${d.room||'-'}</td>
+          <td><span style="cursor:pointer;color:var(--primary)" onclick="openClientDetail(${d.client_id},'${(d.client||'').replace(/'/g,"\\'")}') ">${d.client||'-'}</span></td>
+        </tr>`).join('');
+        html+=`</tbody></table></div>`;
+      }
+      if(!ports.length&&!devs.length) html='<div class="empty">Sin resultados para "'+q+'"</div>';
+      document.getElementById('search-results').innerHTML=html;
+    }catch(e){document.getElementById('search-results').innerHTML=`<div class="empty">${e.message}</div>`;}
+  },300);
+}
+
+// ═══════════════════════════════════════════════════════════ IMPORT
+function handleDrop(event){
+  event.preventDefault();
+  event.target.closest('#drop-zone').style.borderColor='var(--border)';
+  const file = event.dataTransfer.files[0];
+  if(file) setImpFile(file);
+}
+function handleFileSelect(input){
+  if(input.files[0]) setImpFile(input.files[0]);
+}
+function setImpFile(file){
+  _impFile=file;
+  document.getElementById('drop-text').textContent=`📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+}
+async function doImport(){
+  const clientName=document.getElementById('imp-client').value.trim();
+  if(!clientName){toast('Ingresa el nombre del cliente','error');return;}
+  if(!_impFile){toast('Selecciona un archivo Excel','error');return;}
+  const btn=document.getElementById('imp-btn');
+  btn.innerHTML='<span class="spinner"></span> Importando…';btn.disabled=true;
+  try{
+    const fd=new FormData();
+    fd.append('file',_impFile);
+    fd.append('client_name',clientName);
+    const result=await fetch(API+'/api/import/excel',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+    if(!result.ok){const e=await result.json();throw new Error(e.detail);}
+    const data=await result.json();
+    const warnHtml=data.warnings?.length?`<div style="margin-top:8px;color:var(--orange);font-size:11px">${data.warnings.join('<br>')}</div>`:'';
+    document.getElementById('imp-result').innerHTML=`
+      <div style="background:#0a2a0a;border:1px solid #1a4a1a;border-radius:var(--radius);padding:12px">
+        <div style="color:var(--green);font-weight:600;margin-bottom:4px">✓ Importación exitosa</div>
+        <div style="font-size:12px;color:var(--text2)">
+          ${data.rooms_created} cuartos creados · ${data.ports_imported} puertos importados
+        </div>
+        ${warnHtml}
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openClientDetail(${data.client_id},'${clientName.replace(/'/g,"\\'")}')">Ver cliente →</button>
+      </div>`;
+    toast('Importación exitosa','success');
+  }catch(e){
+    document.getElementById('imp-result').innerHTML=`<div style="color:var(--red);font-size:12px">❌ ${e.message}</div>`;
+    toast(e.message,'error');
+  }finally{btn.innerHTML='Importar';btn.disabled=false;}
+}
+
+// ═══════════════════════════════════════════════════════════ AUDIT
+async function loadAudit(){
+  const search=document.getElementById('audit-search')?.value||'';
+  const entity=document.getElementById('audit-entity')?.value||'';
+  const action=document.getElementById('audit-action')?.value||'';
+  let url='/api/audit?limit=200';
+  if(entity) url+=`&entity_type=${entity}`;
+  if(action) url+=`&action=${action}`;
+  if(search) url+=`&search=${encodeURIComponent(search)}`;
+  try{
+    const data=await api('GET',url)||[];
+    const tb=document.getElementById('audit-tb');
+    if(!data.length){tb.innerHTML='<tr><td colspan="6" class="empty">Sin registros</td></tr>';return;}
+    tb.innerHTML=data.map(a=>`<tr>
+      <td style="font-size:10px;font-family:'IBM Plex Mono',monospace">${fmtDate(a.timestamp)}</td>
+      <td>${a.user_name||'-'}</td>
+      <td>${actionBadge(a.action)}</td>
+      <td>${a.entity_type||'-'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${a.entity_label||a.entity_id||'-'}</td>
+      <td style="font-size:10px;color:var(--text3)">${a.ip_address||'-'}</td>
+    </tr>`).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+function exportAudit(){
+  window.open(API+'/api/audit/export','_blank');
+}
+
+// ═══════════════════════════════════════════════════════════ USERS
+async function loadUsers(){
+  try{
+    const data=await api('GET','/api/users')||[];
+    const tb=document.getElementById('users-tb');
+    tb.innerHTML=data.map(u=>`<tr>
+      <td><code>${u.username}</code>${u.auth_provider==='google'?'<span class="badge badge-blue" style="margin-left:6px">Google</span>':''}</td>
+      <td>${u.full_name}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td>${u.auth_provider}</td>
+      <td>
+        ${u.is_active?'<span class="badge badge-green">Activo</span>':'<span class="badge badge-orange">Pendiente</span>'}
+      </td>
+      <td><div class="actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('user',${u.id})">✏️</button>
+        ${!u.is_active?`<button class="btn btn-success btn-sm" onclick="activateUser(${u.id})">✓ Activar</button>`:''}
+        <button class="btn btn-danger btn-sm" onclick="delItem('user',${u.id},'${u.username.replace(/'/g,"\\'")}',loadUsers)">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function activateUser(id){
+  try{
+    await api('PUT',`/api/users/${id}/activate`);
+    toast('Usuario activado','success');
+    loadUsers();
+  }catch(e){toast(e.message,'error');}
+}
+
+// ═══════════════════════════════════════════════════════════ CREDENTIALS
+async function viewCreds(deviceId, deviceName){
+  try{
+    const data=await api('GET',`/api/devices/${deviceId}/credentials`);
+    openCustomModal('Credenciales — '+deviceName,`
+      <div style="background:#2d1010;border:1px solid #5a1f1f;border-radius:var(--radius);padding:10px 12px;font-size:11px;color:var(--orange);margin-bottom:14px">
+        ⚠ Esta consulta ha sido registrada en la bitácora
+      </div>
+      <div class="section-label">Usuario</div>
+      <div class="cred-field">
+        <div class="cred-val" id="cred-user">${data.username||'—'}</div>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('cred-user').textContent);toast('Copiado','success')">📋</button>
+      </div>
+      <div class="section-label" style="margin-top:10px">Contraseña</div>
+      <div class="cred-field">
+        <div class="cred-val" id="cred-pass" style="filter:blur(4px)" onmouseenter="this.style.filter=''" onmouseleave="this.style.filter='blur(4px)'">${data.password||'—'}</div>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('cred-pass').textContent);toast('Copiado','success')">📋</button>
+      </div>
+    `,'Cerrar',false);
+  }catch(e){toast(e.message,'error');}
+}
+
+// ═══════════════════════════════════════════════════════════ DELETE HELPERS
+async function delItem(type, id, label, reload){
+  if(!confirm(`¿Eliminar "${label}"? Esta acción no se puede deshacer.`)) return;
+  const endpoints={client:'/api/clients',room:'/api/rooms',device:'/api/devices',
+    patch_panel:'/api/patch-panels',connection:'/api/connections',
+    backup:'/api/backups',user:'/api/users'};
+  try{
+    await api('DELETE',`${endpoints[type]}/${id}`);
+    toast(`"${label}" eliminado`,'success');
+    typeof reload==='function'?reload():null;
+  }catch(e){toast(e.message,'error');}
+}
+
+async function delVlan(roomId, vlanId, label, reload){
+  if(!confirm(`¿Eliminar ${label}?`)) return;
+  try{
+    await api('DELETE',`/api/rooms/${roomId}/vlans/${vlanId}`);
+    toast(`${label} eliminada`,'success');
+    typeof reload==='function'?reload():null;
+  }catch(e){toast(e.message,'error');}
+}
+
+// ═══════════════════════════════════════════════════════════ MODALS
+const MODALS={
+  client:{
+    title:id=>id?'Editar cliente':'Nuevo cliente',
+    fields:async(id)=>{
+      let d={};
+      if(id) d=await api('GET',`/api/clients/${id}`)||{};
+      return `
+        <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
+        <div class="form-row">
+          <div class="fgroup"><label>Teléfono</label><input id="f-phone" value="${d.phone||''}"></div>
+          <div class="fgroup"><label>Email</label><input id="f-email" type="email" value="${d.email||''}"></div>
+        </div>
+        <div class="fgroup"><label>Dirección</label><input id="f-address" value="${d.address||''}"></div>
+        <div class="fgroup"><label>Contacto</label><input id="f-contact" value="${d.contact||''}"></div>
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
+    },
+    collect:()=>({name:v('f-name'),phone:v('f-phone')||null,email:v('f-email')||null,
+      address:v('f-address')||null,contact:v('f-contact')||null,notes:v('f-notes')||null}),
+    save:(id,d)=>id?api('PUT',`/api/clients/${id}`,d):api('POST','/api/clients',d),
+    reload:()=>{loadClients();if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  room:{
+    title:id=>id?'Editar cuarto':'Nuevo cuarto',
+    fields:async(id,extra)=>{
+      let d={client_id:extra?.client_id,...{}};
+      if(id) d=await api('GET',`/api/rooms/${id}`)||{};
+      const clients=await api('GET','/api/clients')||[];
+      const cOpts=clients.map(c=>`<option value="${c.id}" ${d.client_id==c.id?'selected':''}>${c.name}</option>`).join('');
+      return `
+        <div class="fgroup"><label>Cliente *</label><select id="f-client_id"><option value="">Selecciona…</option>${cOpts}</select></div>
+        <div class="form-row">
+          <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
+          <div class="fgroup"><label>Ubicación</label><input id="f-location" value="${d.location||''}"></div>
+        </div>
+        <hr class="divider"><div class="section-label">Switch principal</div>
+        <div class="form-row-3">
+          <div class="fgroup"><label>Modelo</label><input id="f-sw-model" value="${d.switch_model||''}"></div>
+          <div class="fgroup"><label>MAC</label><input id="f-sw-mac" value="${d.switch_mac||''}"></div>
+          <div class="fgroup"><label>IP</label><input id="f-sw-ip" value="${d.switch_ip||''}"></div>
+        </div>
+        <div class="section-label">Access Point</div>
+        <div class="form-row-3">
+          <div class="fgroup"><label>Modelo</label><input id="f-ap-model" value="${d.ap_model||''}"></div>
+          <div class="fgroup"><label>MAC</label><input id="f-ap-mac" value="${d.ap_mac||''}"></div>
+          <div class="fgroup"><label>IP</label><input id="f-ap-ip" value="${d.ap_ip||''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Formato etiqueta</label>
+            <select id="f-format">
+              <option value="simple" ${(d.patch_label_format||'simple')==='simple'?'selected':''}>Simple (1A-A01)</option>
+              <option value="full" ${d.patch_label_format==='full'?'selected':''}>Full (1A-A-A01)</option>
+            </select>
+          </div>
+        </div>
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
+    },
+    collect:(id,extra)=>({
+      client_id:id?undefined:parseInt(v('f-client_id'))||extra?.client_id,
+      name:v('f-name'),location:v('f-location')||null,notes:v('f-notes')||null,
+      switch_model:v('f-sw-model')||null,switch_mac:v('f-sw-mac')||null,switch_ip:v('f-sw-ip')||null,
+      ap_model:v('f-ap-model')||null,ap_mac:v('f-ap-mac')||null,ap_ip:v('f-ap-ip')||null,
+      patch_label_format:v('f-format'),
+    }),
+    save:(id,d)=>{
+      const {client_id,...rest}=d;
+      if(id) return api('PUT',`/api/rooms/${id}`,rest);
+      return api('POST',`/api/clients/${client_id}/rooms`,rest);
+    },
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  patch_panel:{
+    title:id=>id?'Editar Patch Panel':'Nuevo Patch Panel',
+    fields:async(id,extra)=>{
+      let d={room_id:extra?.room_id};
+      if(id) d=await api('GET',`/api/patch-panels/${id}`)||{};
+      return `
+        <div class="form-row">
+          <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
+          <div class="fgroup"><label>Formato</label>
+            <select id="f-format">
+              <option value="simple" ${(d.format||'simple')==='simple'?'selected':''}>Simple</option>
+              <option value="full" ${d.format==='full'?'selected':''}>Full</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Marca</label><input id="f-brand" value="${d.brand||''}"></div>
+          <div class="fgroup"><label>Modelo</label><input id="f-model" value="${d.model||''}"></div>
+        </div>
+        <div class="form-row-3">
+          <div class="fgroup"><label>Piso *</label><input id="f-floor" type="number" value="${d.floor||1}" min="1"></div>
+          <div class="fgroup"><label>Letra cuarto *</label><input id="f-room-letter" maxlength="1" value="${d.room_letter||'A'}"></div>
+          <div class="fgroup"><label>Letra panel *</label><input id="f-panel-letter" maxlength="1" value="${d.panel_letter||'A'}"></div>
+        </div>
+        <div class="fgroup"><label>Edificio (solo formato full)</label><input id="f-building" maxlength="1" value="${d.building||''}"></div>
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>
+        ${!id?'<div style="font-size:11px;color:var(--text2);margin-top:8px">Al guardar se generarán automáticamente 24 puertos.</div>':''}`;
+    },
+    collect:(id,extra)=>({
+      room_id:id?undefined:extra?.room_id,
+      name:v('f-name'),format:v('f-format'),brand:v('f-brand')||null,model:v('f-model')||null,
+      floor:parseInt(v('f-floor'))||1,room_letter:(v('f-room-letter')||'A').toUpperCase(),
+      panel_letter:(v('f-panel-letter')||'A').toUpperCase(),building:v('f-building')||null,notes:v('f-notes')||null,
+    }),
+    save:(id,d)=>{
+      if(id){const{room_id,...rest}=d;return api('PUT',`/api/patch-panels/${id}`,rest);}
+      const{room_id,...rest}=d;return api('POST',`/api/rooms/${room_id}/patch-panels`,rest);
+    },
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  port:{
+    title:()=>'Editar Puerto PP',
+    fields:async(id)=>{
+      if(!id) return '<div class="empty">ID requerido</div>';
+      const port=await api('GET',`/api/patch-ports/${id}`)||{};
+      const pp=await api('GET',`/api/patch-panels/${port.patch_panel_id}`)||{};
+      const roomId=pp.room_id;
+      const room=await api('GET',`/api/rooms/${roomId}`)||{};
+      const [devs,vlans,devData]=await Promise.all([
+        api('GET',`/api/rooms/${roomId}/devices`),
+        api('GET',`/api/rooms/${roomId}/vlans`),
+        api('GET',`/api/rooms/${roomId}/devices`),
+      ]);
+      const redDevs=devs?.activo_red||[];
+      const allVlans=vlans||[];
+      const devOpts=redDevs.map(d=>`<option value="${d.id}" ${port.device_id==d.id?'selected':''}>${d.name}</option>`).join('');
+      const vlanOpts=allVlans.map(v=>`<option value="${v.id}" ${port.vlan_id==v.id?'selected':''}>${v.vlan_id} - ${v.name}</option>`).join('');
+      let swPortOpts='<option value="">Sin ligar</option>';
+      if(redDevs.length){
+        for(const dev of redDevs){
+          const ports2=await api('GET',`/api/devices/${dev.id}/ports`)||[];
+          ports2.forEach(p=>{swPortOpts+=`<option value="${p.id}" ${port.switch_port_id==p.id?'selected':''}>${dev.name} p:${p.port_number} ${p.port_mode?'('+p.port_mode+')':''}</option>`;});
+        }
+      }
+      return `
+        <div class="port-modal-grid">
+          <div>
+            <div class="section-label">Datos del nodo</div>
+            <div class="fgroup"><label>Etiqueta</label>
+              <input id="f-label" value="${port.label||''}" oninput="validateLabel(this,'${pp.format||'simple'}')">
+              <div id="f-label-hint" style="font-size:10px;color:var(--text2);margin-top:3px">Formato: ${pp.format==='full'?'1A-B-A01':'1A-A01'}</div>
+            </div>
+            <div class="fgroup"><label>Tipo de nodo</label>
+              <select id="f-node-type" onchange="toggleNodeType()">
+                <option value="" ${!port.node_type?'selected':''}>Sin asignar</option>
+                <option value="device" ${port.node_type==='device'?'selected':''}>Equipo registrado</option>
+                <option value="descripcion" ${port.node_type==='descripcion'?'selected':''}>Descripción libre</option>
+                <option value="libre" ${port.node_type==='libre'?'selected':''}>Libre</option>
+                <option value="prevista" ${port.node_type==='prevista'?'selected':''}>Prevista</option>
+              </select>
+            </div>
+            <div id="nt-device" style="display:${port.node_type==='device'?'block':'none'}">
+              <div class="fgroup"><label>Equipo</label><select id="f-device">${devOpts}</select></div>
+            </div>
+            <div id="nt-desc" style="display:${port.node_type==='descripcion'?'block':'none'}">
+              <div class="fgroup"><label>Descripción</label><input id="f-desc" value="${port.node_description||''}"></div>
+            </div>
+            <div id="nt-main">
+              <div class="fgroup"><label>MAC</label><input id="f-mac" value="${port.node_mac||''}" placeholder="AA:BB:CC:DD:EE:FF"></div>
+              <div class="fgroup"><label>IP</label><input id="f-ip" value="${port.node_ip||''}" placeholder="192.168.x.x"></div>
+              <div class="fgroup"><label>VLAN</label><select id="f-vlan"><option value="">Sin VLAN</option>${vlanOpts}</select></div>
+            </div>
+            <div class="fgroup"><label>Notas</label><textarea id="f-notes">${port.notes||''}</textarea></div>
+          </div>
+          <div>
+            <div class="section-label">Ligamen al switch</div>
+            <div class="fgroup"><label>Puerto del switch</label>
+              <select id="f-sw-port">${swPortOpts}</select>
+            </div>
+          </div>
+        </div>`;
+    },
+    collect:(id)=>{
+      const nt=v('f-node-type');
+      return {
+        label:v('f-label')||null,node_type:nt||null,
+        device_id:nt==='device'?parseInt(v('f-device'))||null:null,
+        node_description:nt==='descripcion'?v('f-desc')||null:null,
+        node_mac:v('f-mac')||null,node_ip:v('f-ip')||null,
+        vlan_id:v('f-vlan')?parseInt(v('f-vlan')):null,
+        switch_port_id:v('f-sw-port')?parseInt(v('f-sw-port')):null,
+        notes:v('f-notes')||null,
+      };
+    },
+    save:(id,d)=>api('PUT',`/api/patch-ports/${id}`,d),
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  device:{
+    title:id=>id?'Editar equipo':'Nuevo equipo',
+    fields:async(id,extra)=>{
+      let d={category:extra?.category||'activo_red',room_id:extra?.room_id};
+      if(id) d=await api('GET',`/api/devices/${id}`)||{};
+      const redTypes=['switch','router','firewall','ap','servidor','ups'];
+      const finalTypes=['pc','impresora','nvr','dvr','camara','pbx','reloj_marcador','otro'];
+      const cat=d.category||'activo_red';
+      const types=cat==='activo_red'?redTypes:finalTypes;
+      const typeOpts=types.map(t=>`<option value="${t}" ${d.device_type===t?'selected':''}>${t}</option>`).join('');
+      return `
+        <div class="form-row">
+          <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
+          <div class="fgroup"><label>Tipo *</label><select id="f-type">${typeOpts}</select></div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Marca *</label><input id="f-brand" value="${d.brand||''}"></div>
+          <div class="fgroup"><label>Modelo *</label><input id="f-model" value="${d.model||''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>IP</label><input id="f-ip" value="${d.ip||''}"></div>
+          <div class="fgroup"><label>MAC</label><input id="f-mac" value="${d.mac||''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Hostname</label><input id="f-hostname" value="${d.hostname||''}"></div>
+          <div class="fgroup"><label>Puerto admin</label><input id="f-admin-port" value="${d.admin_port||''}"></div>
+        </div>
+        <hr class="divider"><div class="section-label">Credenciales de acceso</div>
+        <div class="form-row">
+          <div class="fgroup"><label>Usuario</label><input id="f-username" autocomplete="new-password"></div>
+          <div class="fgroup"><label>Contraseña</label><input id="f-password" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
+    },
+    collect:(id,extra)=>({
+      category:extra?.category||'activo_red',
+      room_id:extra?.room_id,
+      name:v('f-name'),device_type:v('f-type'),brand:v('f-brand'),model:v('f-model'),
+      ip:v('f-ip')||null,mac:v('f-mac')||null,hostname:v('f-hostname')||null,
+      admin_port:v('f-admin-port')||null,
+      username:v('f-username')||null,password:v('f-password')||null,
+      notes:v('f-notes')||null,
+    }),
+    save:(id,d)=>{
+      if(id){const{category,room_id,...rest}=d;return api('PUT',`/api/devices/${id}`,rest);}
+      const{room_id,category,...rest}=d;return api('POST',`/api/rooms/${room_id}/devices`,{...rest,category});
+    },
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  vlan:{
+    title:(id,extra,roomId)=>(id||roomId)?'VLAN':'Nueva VLAN',
+    fields:async(id,extra,roomId)=>{
+      let d={room_id:roomId||extra?.room_id};
+      if(id) d=await api('GET',`/api/rooms/${d.room_id||0}/vlans/${id}`).catch(async()=>{
+        return await api('GET',`/api/rooms/${d.room_id}/vlans`).then(vs=>vs.find(v=>v.id===id))||{};
+      });
+      return `
+        <div class="form-row">
+          <div class="fgroup"><label>ID VLAN (1-4094) *</label><input id="f-vlan-id" type="number" min="1" max="4094" value="${d.vlan_id||''}"></div>
+          <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Subred</label><input id="f-subnet" placeholder="192.168.x.0/24" value="${d.subnet||''}"></div>
+          <div class="fgroup"><label>Gateway</label><input id="f-gw" placeholder="192.168.x.1" value="${d.gateway||''}"></div>
+        </div>
+        <div class="fgroup"><label>DHCP</label>
+          <select id="f-dhcp"><option value="false" ${!d.dhcp?'selected':''}>No</option><option value="true" ${d.dhcp?'selected':''}>Sí</option></select>
+        </div>
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
+    },
+    collect:(id,extra,roomId)=>({
+      room_id:roomId||extra?.room_id,vlan_id_parsed:parseInt(v('f-vlan-id')),
+      vlan_id:parseInt(v('f-vlan-id')),name:v('f-name'),
+      subnet:v('f-subnet')||null,gateway:v('f-gw')||null,
+      dhcp:v('f-dhcp')==='true',notes:v('f-notes')||null,
+    }),
+    save:(id,d,extra,roomId)=>{
+      const{room_id,vlan_id_parsed,...rest}=d;
+      if(id) return api('PUT',`/api/rooms/${room_id}/vlans/${id}`,rest);
+      return api('POST',`/api/rooms/${room_id}/vlans`,rest);
+    },
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  connection:{
+    title:()=>'Nueva conexión',
+    fields:async(id,extra)=>`
+      <div class="fgroup"><label>Descripción</label><input id="f-desc" placeholder="Ej: Enlace principal switch a PP"></div>
+      <hr class="divider"><div class="section-label">Nodo A</div>
+      <div class="form-row">
+        <div class="fgroup"><label>Tipo</label>
+          <select id="f-a-type"><option value="device_port">Puerto de dispositivo</option><option value="patch_port">Puerto PP</option><option value="device">Dispositivo</option></select>
+        </div>
+        <div class="fgroup"><label>ID</label><input id="f-a-id" type="number" placeholder="ID del nodo"></div>
+      </div>
+      <div class="section-label">Nodo B</div>
+      <div class="form-row">
+        <div class="fgroup"><label>Tipo</label>
+          <select id="f-b-type"><option value="patch_port">Puerto PP</option><option value="device_port">Puerto de dispositivo</option><option value="device">Dispositivo</option></select>
+        </div>
+        <div class="fgroup"><label>ID</label><input id="f-b-id" type="number" placeholder="ID del nodo"></div>
+      </div>
+      <div class="fgroup"><label>Notas</label><textarea id="f-notes"></textarea></div>`,
+    collect:(id,extra)=>({
+      room_id:extra?.room_id,
+      description:v('f-desc')||null,notes:v('f-notes')||null,
+      node_a_type:v('f-a-type'),node_a_id:parseInt(v('f-a-id')),
+      node_b_type:v('f-b-type'),node_b_id:parseInt(v('f-b-id')),
+    }),
+    save:(id,d)=>{const{room_id,...rest}=d;return api('POST',`/api/rooms/${room_id}/connections`,rest);},
+    reload:()=>{if(currentClientId)openClientDetail(currentClientId,'');}
+  },
+  backup:{
+    title:(_,extra)=>`Backups — ${extra?.device_name||'Dispositivo'}`,
+    fields:async(id,extra)=>{
+      const devId=extra?.device_id;
+      const bkps = devId ? await api('GET',`/api/devices/${devId}/backups`)||[] : [];
+      return `
+        <div class="section-label">Historial</div>
+        ${bkps.length?bkps.map(b=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;font-size:12px">
+            <span>📄 ${b.filename} ${b.version?`(v${b.version})`:''}</span>
+            <div class="actions">
+              <a href="${API}/api/backups/${b.id}/download" class="btn btn-secondary btn-sm" target="_blank">⬇️</a>
+              <button class="btn btn-danger btn-sm" onclick="delItem('backup',${b.id},'${b.filename.replace(/'/g,"\\'")}',closeModal)">🗑️</button>
+            </div>
+          </div>
+        `).join(''):'<div class="empty" style="padding:16px">Sin backups</div>'}
+        <hr class="divider"><div class="section-label">Subir nuevo backup</div>
+        <div class="fgroup"><label>Archivo *</label><input id="f-bkp-file" type="file"></div>
+        <div class="form-row">
+          <div class="fgroup"><label>Versión</label><input id="f-bkp-ver" placeholder="1.0"></div>
+          <div class="fgroup"><label>Notas</label><input id="f-bkp-notes"></div>
+        </div>`;
+    },
+    collect:(id,extra)=>({device_id:extra?.device_id}),
+    save:async(id,d,extra)=>{
+      const fileInput=document.getElementById('f-bkp-file');
+      if(!fileInput?.files[0]) return null;
+      const fd=new FormData();
+      fd.append('file',fileInput.files[0]);
+      const ver=v('f-bkp-ver');const notes=v('f-bkp-notes');
+      if(ver) fd.append('version',ver);
+      if(notes) fd.append('notes',notes);
+      return fetch(API+`/api/devices/${d.device_id}/backups`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd}).then(r=>r.ok?r.json():r.json().then(e=>{throw new Error(e.detail);}));
+    },
+    reload:()=>{}
+  },
+  user:{
+    title:id=>id?'Editar usuario':'Nuevo usuario',
+    fields:async(id)=>{
+      let d={};
+      if(id) d=(await api('GET','/api/users')||[]).find(u=>u.id===id)||{};
+      return `
+        <div class="form-row">
+          <div class="fgroup"><label>Usuario *</label><input id="f-username" value="${d.username||''}" ${id?'readonly':''}></div>
+          <div class="fgroup"><label>Nombre completo *</label><input id="f-fullname" value="${d.full_name||''}"></div>
+        </div>
+        ${!id?`<div class="fgroup"><label>Contraseña *</label><input id="f-pass" type="password" autocomplete="new-password"></div>`:''}
+        <div class="form-row">
+          <div class="fgroup"><label>Rol</label>
+            <select id="f-role">
+              ${['readonly','tecnico','admin'].map(r=>`<option value="${r}" ${d.role===r?'selected':''}>${r}</option>`).join('')}
+            </select>
+          </div>
+          ${id?`<div class="fgroup"><label>Estado</label>
+            <select id="f-active">
+              <option value="true" ${d.is_active?'selected':''}>Activo</option>
+              <option value="false" ${!d.is_active?'selected':''}>Inactivo</option>
+            </select>
+          </div>`:''}
+        </div>`;
+    },
+    collect:(id)=>{
+      const d={full_name:v('f-fullname'),role:v('f-role')};
+      if(!id){d.username=v('f-username');d.password=v('f-pass');}
+      if(id) d.is_active=v('f-active')==='true';
+      return d;
+    },
+    save:(id,d)=>{
+      if(id) return api('PUT',`/api/users/${id}`,d);
+      return api('POST','/api/users',{...d,username:v('f-username')});
+    },
+    reload:loadUsers,
+  },
+};
+
+let _modalExtra=null, _modalRoomId=null;
+
+async function openModal(type, id=null, extra=null, roomId=null){
+  const cfg=MODALS[type];
+  if(!cfg) return;
+  modalCfg={type,id,extra,roomId};
+  _modalExtra=extra; _modalRoomId=roomId;
+  document.getElementById('modal-title').textContent=cfg.title(id,extra,roomId);
+  document.getElementById('modal-body').innerHTML='<div style="text-align:center;padding:24px;color:var(--text2)"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
+  document.getElementById('modal-foot').style.display='flex';
+  document.getElementById('mo').classList.add('open');
+  try{
+    document.getElementById('modal-body').innerHTML=await cfg.fields(id,extra,roomId);
+  }catch(e){document.getElementById('modal-body').innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function openCustomModal(title, bodyHtml, closeBtnText='Cerrar', showSave=false){
+  modalCfg=null;
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=bodyHtml;
+  document.getElementById('modal-foot').innerHTML=`<button class="btn btn-secondary" onclick="closeModal()">${closeBtnText}</button>`;
+  document.getElementById('mo').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('mo').classList.remove('open');
+  document.getElementById('modal-foot').innerHTML='<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="modal-save" onclick="submitModal()">Guardar</button>';
+  modalCfg=null;
+}
+
+async function submitModal(){
+  if(!modalCfg) return;
+  const {type,id,extra,roomId}=modalCfg;
+  const cfg=MODALS[type];
+  if(!cfg) return;
+  const btn=document.getElementById('modal-save');
+  btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
+  try{
+    const data=cfg.collect(id,extra,roomId);
+    const result=await cfg.save(id,data,extra,roomId);
+    if(result!==null||type==='backup'){toast(id?'Actualizado':'Creado','success');}
+    closeModal();
+    cfg.reload?.();
+  }catch(e){toast(e.message,'error');}
+  finally{btn.innerHTML='Guardar';btn.disabled=false;}
+}
+
+function v(id){return document.getElementById(id)?.value||'';}
+
+function validateLabel(input, fmt){
+  const val=input.value.trim();
+  const simple=/^[0-9][A-Z]-[A-Z][0-9]{2}$/.test(val);
+  const full=/^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$/.test(val);
+  const valid=(fmt==='full'?full:simple)||val==='';
+  input.style.borderColor=valid?'var(--border)':'var(--red)';
+  const hint=document.getElementById('f-label-hint');
+  if(hint) hint.style.color=valid?'var(--text2)':'var(--red)';
+}
+
+function toggleNodeType(){
+  const nt=document.getElementById('f-node-type')?.value;
+  document.getElementById('nt-device').style.display=nt==='device'?'block':'none';
+  document.getElementById('nt-desc').style.display=nt==='descripcion'?'block':'none';
+}
+
+// ═══════════════════════════════════════════════════════════ INIT
+(async()=>{
+  const params=new URLSearchParams(window.location.search);
+  if(params.has('token')){
+    token=params.get('token');
+    localStorage.setItem('mn_token',token);
+    window.history.replaceState({},'','/');
+    try{currentUser=await api('GET','/api/auth/me');}catch{logout();return;}
+    initApp();
+    return;
+  }
+  if(params.has('google_pending')){
+    window.history.replaceState({},'','/');
+    document.getElementById('pending-msg').style.display='block';
+  }
+  if(token){
+    try{currentUser=await api('GET','/api/auth/me');}catch{token=null;localStorage.removeItem('mn_token');}
+    if(token){initApp();return;}
+  }
+  // Show auth
+  try{
+    const cfg=await fetch(API+'/api/auth/config').then(r=>r.json());
+    if(cfg?.google_auth_enabled) document.getElementById('g-btn').style.display='flex';
+  }catch{}
+})();
+</script>
+</body>
+</html>
