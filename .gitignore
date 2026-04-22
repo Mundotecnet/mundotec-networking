@@ -5,3 +5,4 @@ __pycache__/
 storage/reportes/*.pdf
 storage/reportes/*.xlsx
 storage/reportes/*.docx
+.claude/worktrees/
