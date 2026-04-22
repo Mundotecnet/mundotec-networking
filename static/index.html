@@ -2168,14 +2168,15 @@ const MODALS={
       const pp=await api('GET',`/api/patch-panels/${port.patch_panel_id}`)||{};
       const roomId=pp.room_id;
       const room=await api('GET',`/api/rooms/${roomId}`)||{};
-      const [devs,vlans,devData]=await Promise.all([
+      const [devs,vlans]=await Promise.all([
         api('GET',`/api/rooms/${roomId}/devices`),
         api('GET',`/api/rooms/${roomId}/vlans`),
-        api('GET',`/api/rooms/${roomId}/devices`),
       ]);
       const redDevs=devs?.activo_red||[];
+      const finalDevs=devs?.activo_final||[];
       const allVlans=vlans||[];
-      const devOpts=redDevs.map(d=>`<option value="${d.id}" ${port.device_id==d.id?'selected':''}>${d.name}</option>`).join('');
+      // "Equipo registrado" = equipos finales (PC, cámara, teléfono, etc.)
+      const devOpts=finalDevs.map(d=>`<option value="${d.id}" ${port.device_id==d.id?'selected':''}>${d.name} (${d.device_type})</option>`).join('');
       const vlanOpts=allVlans.map(v=>`<option value="${v.id}" ${port.vlan_id==v.id?'selected':''}>${v.vlan_id} - ${v.name}</option>`).join('');
       // Build device→ports map; find which device owns the current switch_port_id
       window._swPortsMap={};
