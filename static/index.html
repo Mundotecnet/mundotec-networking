@@ -1364,32 +1364,77 @@ function renderPortsGrid(ports, ppId, roomId){
 }
 
 function renderPortsList(ports, ppId, roomId){
-  const statusLabel={completo:'✓ Completo',parcial:'! Parcial',libre:'— Libre',prevista:'~ Prevista',sin_revisar:'? Sin revisar'};
-  const statusStyle={completo:'background:#0a2a0a;color:var(--green)',parcial:'background:#1a1400;color:#e3b341',libre:'background:var(--bg3);color:var(--text3)',prevista:'background:#1a0a2a;color:#bc8cff',sin_revisar:'background:var(--bg2);color:var(--text2)'};
+  const inp='background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:11px;width:100%;padding:2px 4px;outline:none;font-family:inherit';
+  const inpFocus='onFocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg2)\'"';
   const rows=ports.sort((a,b)=>a.number-b.number).map(p=>{
-    const st=p.completeness_status||'sin_revisar';
-    return '<tr>'
-      +'<td style="width:36px;text-align:center;color:var(--text3)">'+p.number+'</td>'
-      +'<td style="font-family:monospace;font-size:11px">'+(p.label||'')+'</td>'
-      +'<td><span style="font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;'+(statusStyle[st]||'')+'">'+( statusLabel[st]||st)+'</span></td>'
-      +'<td style="font-size:12px;color:var(--text2)">'+(p.node_description||'')+'</td>'
-      +'<td style="font-size:11px;font-family:monospace">'+(p.node_ip||'')+'</td>'
-      +'<td style="font-size:11px;font-family:monospace">'+(p.node_mac||'')+'</td>'
-      +'<td style="width:32px;text-align:center"><button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:10px" onclick="openModal(\'port\','+p.id+')" oncontextmenu="portContextMenu(event,'+p.id+','+ppId+','+roomId+')">✏️</button></td>'
+    const nt=p.node_type||'';
+    const isLibre=nt==='libre'||nt==='prevista';
+    const descDisabled=isLibre?'disabled':'';
+    const ipDisabled=isLibre?'disabled':'';
+    const macDisabled=isLibre?'disabled':'';
+    return `<tr id="prow-${p.id}" style="border-bottom:1px solid var(--bg3)">`
+      +`<td style="padding:3px 6px;text-align:center;color:var(--text3);font-size:11px;white-space:nowrap">${p.number}</td>`
+      +`<td style="padding:3px 4px;font-family:monospace;font-size:10px;color:var(--text3);white-space:nowrap">${p.label||''}</td>`
+      +`<td style="padding:3px 4px;min-width:110px"><select id="pit-${p.id}" style="${inp}" onchange="ppRowTypeChange(${p.id})" onblur="ppRowSave(${p.id},${ppId},${roomId})">`
+        +`<option value="" ${!nt?'selected':''}>—</option>`
+        +`<option value="descripcion" ${nt==='descripcion'?'selected':''}>Descripción</option>`
+        +`<option value="libre" ${nt==='libre'?'selected':''}>Libre</option>`
+        +`<option value="prevista" ${nt==='prevista'?'selected':''}>Prevista</option>`
+      +`</select></td>`
+      +`<td style="padding:3px 4px;min-width:160px"><input id="pid-${p.id}" style="${inp}" value="${(p.node_description||'').replace(/"/g,'&quot;')}" placeholder="Descripción" ${descDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
+      +`<td style="padding:3px 4px;min-width:110px"><input id="pii-${p.id}" style="${inp};font-family:monospace" value="${p.node_ip||''}" placeholder="192.168.x.x" ${ipDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
+      +`<td style="padding:3px 4px;min-width:130px"><input id="pim-${p.id}" style="${inp};font-family:monospace" value="${p.node_mac||''}" placeholder="AA:BB:CC:DD:EE:FF" ${macDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
+      +`<td style="padding:3px 6px;text-align:center;width:28px"><span id="pst-${p.id}" title="Guardado">　</span></td>`
+      +`<td style="padding:3px 4px;width:24px"><button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:10px" onclick="openModal('port',${p.id})" title="Editar completo">⋯</button></td>`
       +'</tr>';
   }).join('');
-  return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border)">'
-    +'<th style="padding:4px 8px;text-align:center">#</th>'
-    +'<th style="padding:4px 8px;text-align:left">Etiqueta</th>'
-    +'<th style="padding:4px 8px;text-align:left">Estado</th>'
-    +'<th style="padding:4px 8px;text-align:left">Descripción</th>'
-    +'<th style="padding:4px 8px;text-align:left">IP</th>'
-    +'<th style="padding:4px 8px;text-align:left">MAC</th>'
-    +'<th></th>'
+  return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);font-size:10px">'
+    +'<th style="padding:4px 6px;text-align:center">#</th>'
+    +'<th style="padding:4px 6px">Etiqueta</th>'
+    +'<th style="padding:4px 6px">Tipo</th>'
+    +'<th style="padding:4px 6px">Descripción</th>'
+    +'<th style="padding:4px 6px">IP</th>'
+    +'<th style="padding:4px 6px">MAC</th>'
+    +'<th></th><th></th>'
     +'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
+}
+
+function ppRowTypeChange(portId){
+  const nt=document.getElementById('pit-'+portId)?.value;
+  const isLibre=nt==='libre'||nt==='prevista';
+  ['pid-','pii-','pim-'].forEach(pre=>{
+    const el=document.getElementById(pre+portId);
+    if(el){el.disabled=isLibre;if(isLibre)el.value='';}
+  });
+}
+
+async function ppRowSave(portId, ppId, roomId){
+  const nt=document.getElementById('pit-'+portId)?.value||null;
+  const desc=document.getElementById('pid-'+portId)?.value||null;
+  const ip=document.getElementById('pii-'+portId)?.value||null;
+  const mac=document.getElementById('pim-'+portId)?.value||null;
+  const ind=document.getElementById('pst-'+portId);
+  if(ind) ind.textContent='…';
+  try{
+    const saved=await api('PUT',`/api/patch-ports/${portId}`,{
+      node_type:nt||null,
+      node_description:(nt&&nt!=='libre'&&nt!=='prevista')?desc||null:null,
+      node_ip:(nt&&nt!=='libre'&&nt!=='prevista')?ip||null:null,
+      node_mac:(nt&&nt!=='libre'&&nt!=='prevista')?mac||null:null,
+    });
+    if(ind){ind.textContent='✓';ind.style.color='var(--green)';setTimeout(()=>{ind.textContent='　';ind.style.color='';},2000);}
+    // update cache
+    if(ppPortsCache[ppId]){
+      const idx=ppPortsCache[ppId].findIndex(p=>p.id===portId);
+      if(idx>=0) Object.assign(ppPortsCache[ppId][idx],saved||{node_type:nt,node_description:desc,node_ip:ip,node_mac:mac});
+    }
+  }catch(e){
+    if(ind){ind.textContent='✗';ind.style.color='var(--red)';}
+    toast('Error al guardar puerto','error');
+  }
 }
 
 function togglePPView(ppId, roomId){
