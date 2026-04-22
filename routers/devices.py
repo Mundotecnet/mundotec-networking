@@ -12,7 +12,7 @@ from services.crypto import encrypt, decrypt
 router = APIRouter()
 
 ACTIVO_RED_TYPES   = {"switch", "router", "firewall", "ap", "servidor", "ups"}
-ACTIVO_FINAL_TYPES = {"pc", "impresora", "nvr", "dvr", "camara", "pbx", "reloj_marcador", "otro"}
+ACTIVO_FINAL_TYPES = {"pc", "impresora", "nvr", "dvr", "camara", "pbx", "telefono", "reloj_marcador", "otro"}
 ALL_TYPES = ACTIVO_RED_TYPES | ACTIVO_FINAL_TYPES
 
 
