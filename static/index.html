@@ -1382,7 +1382,7 @@ function renderPortsList(ports, ppId, roomId){
       }
     }
     const devOpts=devOptBase.replace(`value="${linkedDevId}"`,`value="${linkedDevId}" selected`);
-    const devPorts=linkedDevId?(window._swPortsMap||{})[linkedDevId]||[];
+    const devPorts=linkedDevId?((window._swPortsMap||{})[linkedDevId]||[]):[];
     const portOpts='<option value="">—</option>'
       +(devPorts.map(x=>`<option value="${x.id}"${x.id===linkedPortId?' selected':''}>${x.port_number}${x.port_mode?' ('+x.port_mode+')':''}</option>`).join(''));
 
