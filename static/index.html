@@ -2184,6 +2184,10 @@ const MODALS={
           <div class="fgroup"><label>Hostname</label><input id="f-hostname" value="${d.hostname||''}"></div>
           <div class="fgroup"><label>Puerto admin</label><input id="f-admin-port" value="${d.admin_port||''}"></div>
         </div>
+        <div class="form-row">
+          <div class="fgroup"><label>Cantidad de puertos</label><input id="f-port-count" type="number" min="0" max="512" value="${d.port_count||0}" placeholder="0"></div>
+          <div class="fgroup"></div>
+        </div>
         <hr class="divider"><div class="section-label">Credenciales de acceso</div>
         <div class="form-row">
           <div class="fgroup"><label>Usuario</label><input id="f-username" autocomplete="new-password"></div>
@@ -2197,6 +2201,7 @@ const MODALS={
       name:v('f-name'),device_type:v('f-type'),brand:v('f-brand'),model:v('f-model'),
       ip:v('f-ip')||null,mac:v('f-mac')||null,hostname:v('f-hostname')||null,
       admin_port:v('f-admin-port')||null,
+      port_count:parseInt(v('f-port-count'))||0,
       username:v('f-username')||null,password:v('f-password')||null,
       notes:v('f-notes')||null,
     }),
