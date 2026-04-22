@@ -1,12 +1,17 @@
 """
 Importador Excel para MundoTec Networking.
 Cada hoja = un cuarto. Columnas: PUERTO | DETALLE | MAC | PUERTO SWITCH
+
+v2: además de crear rooms/patch_panels legacy, crea cuarto/gabinete/patch_panel
+    y endpoint en el schema nuevo para habilitar trazabilidad.
 """
 import re
+import uuid
 from io import BytesIO
 from typing import Any
 import openpyxl
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import models
 
 # ── Type detection ─────────────────────────────────────────────────────────────
@@ -51,6 +56,14 @@ def _clean_sw_port(raw: str) -> str:
     return raw
 
 
+def _detected_to_endpoint_tipo(detected: str) -> str:
+    MAP = {
+        "camara": "camara", "ap": "ap", "estacion": "pc",
+        "pbx": "otro", "impresora": "impresora", "nvr": "nvr", "dvr": "dvr",
+    }
+    return MAP.get(detected, "otro")
+
+
 def _detect_format(label: str) -> str:
     if re.match(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$", label):
         return "full"
@@ -88,6 +101,97 @@ def _extract_room_meta(ws) -> dict:
     return meta
 
 
+# ── Helpers schema v2 ─────────────────────────────────────────────────────────
+
+def _get_or_create_sitio(db: Session, client_id: int, nombre: str) -> str:
+    row = db.execute(text(
+        "SELECT id::text FROM sitio WHERE cliente_id=:cid AND nombre=:nom"
+    ), {"cid": client_id, "nom": nombre}).scalar()
+    if row:
+        return row
+    sid = str(uuid.uuid4())
+    db.execute(text(
+        "INSERT INTO sitio (id, cliente_id, nombre) VALUES (:id,:cid,:nom)"
+    ), {"id": sid, "cid": client_id, "nom": nombre})
+    return sid
+
+
+def _get_or_create_edificio(db: Session, sitio_id: str) -> str:
+    row = db.execute(text(
+        "SELECT id::text FROM edificio WHERE sitio_id=:sid AND codigo='A'"
+    ), {"sid": sitio_id}).scalar()
+    if row:
+        return row
+    eid = str(uuid.uuid4())
+    db.execute(text(
+        "INSERT INTO edificio (id, sitio_id, codigo, nombre, piso_default) VALUES (:id,:sid,'A','Principal',1)"
+    ), {"id": eid, "sid": sitio_id})
+    return eid
+
+
+def _get_or_create_cuarto(db: Session, edificio_id: str, room_legacy_id: int,
+                           codigo: str, nombre: str) -> str:
+    row = db.execute(text(
+        "SELECT id::text FROM cuarto WHERE room_legacy_id=:rid"
+    ), {"rid": room_legacy_id}).scalar()
+    if row:
+        return row
+    cid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO cuarto (id, edificio_id, room_legacy_id, piso, codigo, nombre)
+        VALUES (:id, :eid, :rid, 1, :cod, :nom)
+        ON CONFLICT DO NOTHING
+    """), {"id": cid, "eid": edificio_id, "rid": room_legacy_id, "cod": codigo, "nom": nombre})
+    # re-fetch in case of conflict
+    row = db.execute(text("SELECT id::text FROM cuarto WHERE room_legacy_id=:rid"),
+                     {"rid": room_legacy_id}).scalar()
+    return row or cid
+
+
+def _create_patch_panel_v2(db: Session, gabinete_id: str, codigo: str,
+                            puertos_total: int) -> str:
+    ppid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO patch_panel (id, gabinete_id, codigo, tipo, categoria, puertos_total)
+        VALUES (:id, :gid, :cod, 'cobre', 'Cat6', :total)
+        ON CONFLICT DO NOTHING
+    """), {"id": ppid, "gid": gabinete_id, "cod": codigo, "total": puertos_total})
+    row = db.execute(text(
+        "SELECT id::text FROM patch_panel WHERE gabinete_id=:gid AND codigo=:cod"
+    ), {"gid": gabinete_id, "cod": codigo}).scalar()
+    return row or ppid
+
+
+def _create_gabinete(db: Session, cuarto_id: str, codigo: str = "A") -> str:
+    row = db.execute(text(
+        "SELECT id::text FROM gabinete WHERE cuarto_id=:cid AND codigo=:cod"
+    ), {"cid": cuarto_id, "cod": codigo}).scalar()
+    if row:
+        return row
+    gid = str(uuid.uuid4())
+    db.execute(text(
+        "INSERT INTO gabinete (id, cuarto_id, codigo, nombre) VALUES (:id,:cid,:cod,'Gabinete Principal')"
+    ), {"id": gid, "cid": cuarto_id, "cod": codigo})
+    return gid
+
+
+def _create_endpoint_v2(db: Session, client_id: int, sitio_id: str,
+                         nombre: str, tipo: str, ip: str | None, mac: str | None,
+                         faceplate_puerto_id: str | None) -> str:
+    eid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO endpoint (id, cliente_id, sitio_id, tipo, nombre, ip, mac, faceplate_puerto_id)
+        VALUES (:id, :cid, :sid, :tipo, :nom, :ip, :mac, :face)
+        ON CONFLICT DO NOTHING
+    """), {
+        "id": eid, "cid": client_id, "sid": sitio_id,
+        "tipo": tipo, "nom": nombre[:200],
+        "ip": ip, "mac": mac or None,
+        "face": faceplate_puerto_id,
+    })
+    return eid
+
+
 # ── Main importer ──────────────────────────────────────────────────────────────
 
 def import_excel(
@@ -110,6 +214,11 @@ def import_excel(
         db.add(client)
         db.flush()
 
+    # Sitio v2 — uno por cliente/importación
+    sitio_id = _get_or_create_sitio(db, client.id, client.name)
+    edificio_id = _get_or_create_edificio(db, sitio_id)
+    cuarto_letra = 65  # 'A'
+
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         meta = _extract_room_meta(ws)
@@ -131,6 +240,12 @@ def import_excel(
             db.add(room)
             db.flush()
             rooms_created += 1
+
+        # Cuarto v2
+        codigo_cuarto = chr(cuarto_letra) if cuarto_letra <= 90 else str(cuarto_letra - 64)
+        cuarto_id = _get_or_create_cuarto(db, edificio_id, room.id, codigo_cuarto, sheet_name)
+        gabinete_id = _create_gabinete(db, cuarto_id)
+        cuarto_letra += 1
 
         # Detect headers row (find row containing "PUERTO")
         header_row_idx = None
@@ -201,7 +316,7 @@ def import_excel(
             m = re.match(r"^([0-9])([A-Z])-([A-Z])", first_label)
             floor, room_letter, panel_letter = int(m[1]), m[2], m[3]
 
-        # Create patch panel
+        # Create patch panel (legacy)
         pp = models.PatchPanel(
             room_id=room.id,
             name=f"PP-{panel_letter}",
@@ -213,6 +328,9 @@ def import_excel(
         )
         db.add(pp)
         db.flush()
+
+        # Patch panel v2
+        pp_v2_id = _create_patch_panel_v2(db, gabinete_id, panel_letter, 24)
 
         # Create 24 ports
         for i in range(1, 25):
@@ -240,6 +358,32 @@ def import_excel(
                     status=status,
                     completeness_status=status,
                 )
+
+                # Puerto terminal v2
+                etq_norm = f"PP-1-A-{codigo_cuarto}-A-{panel_letter}-{i:02d}"
+                port_v2_id = str(uuid.uuid4())
+                db.execute(text("""
+                    INSERT INTO puerto_terminal
+                      (id, tipo, patch_panel_id, numero, etiqueta_norm, etiqueta_display, notas)
+                    VALUES (:id,'patch_panel_port',:pp,:num,:etq,:disp,:notes)
+                    ON CONFLICT (etiqueta_norm) DO NOTHING
+                """), {
+                    "id": port_v2_id, "pp": pp_v2_id, "num": i,
+                    "etq": etq_norm,
+                    "disp": e.get("port_label") or label,
+                    "notes": detail if detail else None,
+                })
+
+                # Endpoint v2 si tiene datos útiles
+                if detected not in ("libre", "prevista") and detail:
+                    tipo_ep = _detected_to_endpoint_tipo(detected)
+                    nombre_ep = f"{detail[:80]} [{label}]"
+                    _create_endpoint_v2(
+                        db, client.id, sitio_id,
+                        nombre_ep, tipo_ep,
+                        e.get("ip_from_mac"), e.get("mac"),
+                        port_v2_id,
+                    )
             else:
                 port = models.PatchPort(
                     patch_panel_id=pp.id,

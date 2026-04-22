@@ -47,6 +47,9 @@ from routers import (
     users, clients, rooms, patch_panels, patch_ports,
     devices, device_ports, vlans, connections, backups,
     audit as audit_router, projects,
+    sitios, edificios, cuartos, gabinetes,
+    trazabilidad,
+    ipam, fibra, credenciales,
 )
 
 app = FastAPI(
@@ -82,6 +85,14 @@ for r in [
     backups.router,
     audit_router.router,
     projects.router,
+    sitios.router,
+    edificios.router,
+    cuartos.router,
+    gabinetes.router,
+    trazabilidad.router,
+    ipam.router,
+    fibra.router,
+    credenciales.router,
 ]:
     app.include_router(r, prefix=PREFIX)
 
@@ -98,56 +109,8 @@ def search(
     db: Session = Depends(get_db),
     _: models.User = Depends(get_current_user),
 ):
-    like = f"%{q}%"
-    ports = (
-        db.query(models.PatchPort)
-        .filter(
-            models.PatchPort.label.ilike(like) |
-            models.PatchPort.node_mac.ilike(like) |
-            models.PatchPort.node_ip.ilike(like) |
-            models.PatchPort.node_description.ilike(like)
-        )
-        .limit(30)
-        .all()
-    )
-    devs = (
-        db.query(models.Device)
-        .filter(
-            models.Device.name.ilike(like) |
-            models.Device.mac.ilike(like) |
-            models.Device.ip.ilike(like) |
-            models.Device.hostname.ilike(like)
-        )
-        .limit(30)
-        .all()
-    )
-
-    def port_out(p: models.PatchPort):
-        pp = p.patch_panel
-        room = pp.room if pp else None
-        client = room.client if room else None
-        return {
-            "id": p.id, "label": p.label, "mac": p.node_mac, "ip": p.node_ip,
-            "room": room.name if room else None,
-            "client": client.name if client else None,
-            "client_id": client.id if client else None,
-        }
-
-    def dev_out(d: models.Device):
-        room = d.room
-        client = room.client if room else None
-        return {
-            "id": d.id, "name": d.name, "mac": d.mac, "ip": d.ip,
-            "device_type": d.device_type,
-            "room": room.name if room else None,
-            "client": client.name if client else None,
-            "client_id": client.id if client else None,
-        }
-
-    return {
-        "patch_ports": [port_out(p) for p in ports],
-        "devices": [dev_out(d) for d in devs],
-    }
+    from services.busqueda import buscar
+    return buscar(q, db)
 
 
 # ── Excel import endpoint ─────────────────────────────────────────────────────

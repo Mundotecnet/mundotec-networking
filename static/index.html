@@ -196,6 +196,33 @@ tr:hover td{background:rgba(88,166,255,.03)}
 /* ── Credential display ── */
 .cred-field{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px}
 .cred-val{flex:1;font-family:'IBM Plex Mono',monospace;font-size:13px}
+
+/* ── Trazabilidad hop-by-hop ── */
+.hop-row{display:flex;align-items:flex-start;gap:0;border-bottom:1px solid var(--border);padding:10px 16px;transition:background .1s}
+.hop-row:last-child{border-bottom:none}
+.hop-row:hover{background:var(--bg3)}
+.hop-semaforo{width:28px;display:flex;flex-direction:column;align-items:center;padding-top:2px;flex-shrink:0}
+.hop-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.hop-dot.verde{background:#3fb950;box-shadow:0 0 6px rgba(63,185,80,.5)}
+.hop-dot.amarillo{background:#d29922;box-shadow:0 0 6px rgba(210,153,34,.5)}
+.hop-dot.rojo{background:#f85149;box-shadow:0 0 6px rgba(248,81,73,.5)}
+.hop-line{width:2px;flex:1;min-height:16px;margin:3px 0;background:var(--border)}
+.hop-body{flex:1}
+.hop-label{font-size:13px;font-weight:600;color:var(--text)}
+.hop-detalle{font-size:11px;color:var(--text3);margin-top:2px}
+.hop-tipo-badge{font-size:9px;text-transform:uppercase;letter-spacing:.5px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1px 6px;color:var(--text3);margin-left:6px}
+.hop-connector{padding:4px 16px 4px 44px;font-size:11px;color:var(--text3);font-style:italic}
+.traza-estado-verde{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.traza-estado-rojo{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+.traza-estado-amarillo{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+/* ── Árbol de sitios ── */
+.sitio-card{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+.sitio-header{padding:12px 16px;background:var(--bg3);display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.sitio-header:hover{background:var(--bg2)}
+.sitio-body{padding:0 0 8px 0}
+.edif-row{padding:6px 16px 6px 32px;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:6px;align-items:center}
+.cuarto-row{padding:4px 16px 4px 52px;font-size:12px;color:var(--text2);display:flex;gap:6px;align-items:center;cursor:pointer}
+.cuarto-row:hover{background:var(--bg3);color:var(--primary)}
 </style>
 </head>
 <body>
@@ -232,6 +259,11 @@ tr:hover td{background:rgba(88,166,255,.03)}
     <div class="sb-section">
       <div class="nav-item active" data-page="dashboard" onclick="nav('dashboard',this)">📊 Dashboard</div>
       <div class="nav-item" data-page="clients" onclick="nav('clients',this)">🏢 Clientes</div>
+      <div class="nav-item" data-page="sitios" onclick="nav('sitios',this)">🗺️ Sitios</div>
+      <div class="nav-item" data-page="trazabilidad" onclick="nav('trazabilidad',this)">🔗 Trazabilidad</div>
+      <div class="nav-item" data-page="ipam" onclick="nav('ipam',this)">🌐 IPAM</div>
+      <div class="nav-item" data-page="fibra" onclick="nav('fibra',this)">💡 Fibra Óptica</div>
+      <div class="nav-item" data-page="credenciales" onclick="nav('credenciales',this)">🔑 Credenciales</div>
       <div class="nav-item" data-page="search" onclick="nav('search',this)">🔍 Búsqueda</div>
       <div class="nav-item" data-page="import" onclick="nav('import',this)">📥 Importar Excel</div>
     </div>
@@ -355,6 +387,224 @@ tr:hover td{background:rgba(88,166,255,.03)}
         <table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Proveedor</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody id="users-tb"></tbody></table>
       </div></div>
+    </div>
+
+    <!-- ── SITIOS ── -->
+    <div class="page" id="p-sitios">
+      <div class="ph">
+        <div class="ph-left"><h1>Sitios</h1><p>Jerarquía cliente → sitio → edificio → cuarto → gabinete</p></div>
+        <div class="ph-right"><button class="btn" onclick="openModalSitio()">+ Nuevo sitio</button></div>
+      </div>
+      <div id="sitios-tree" class="card"><div class="card-body" style="padding:16px">
+        <p style="color:var(--text3)">Cargando...</p>
+      </div></div>
+    </div>
+
+    <!-- ── TRAZABILIDAD ── -->
+    <div class="page" id="p-trazabilidad">
+      <div class="ph">
+        <div class="ph-left"><h1>Trazabilidad</h1><p>Traza hop-by-hop de cualquier endpoint</p></div>
+      </div>
+      <!-- Buscador de endpoints -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" style="padding:16px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <input id="traza-search" type="text" placeholder="Buscar endpoint (nombre, IP, MAC, hostname)…"
+              style="flex:1;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px"
+              oninput="buscarEndpoints(this.value)">
+            <button class="btn btn-sm" onclick="buscarEndpoints(document.getElementById('traza-search').value)">Buscar</button>
+          </div>
+          <div id="endpoint-results" style="margin-top:12px"></div>
+        </div>
+      </div>
+      <!-- Vista hop-by-hop -->
+      <div id="traza-panel" style="display:none">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3 id="traza-titulo">Traza</h3>
+            <span id="traza-estado-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600"></span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div id="traza-hops"></div>
+          </div>
+          <div class="card-body" style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">
+            <span id="traza-resumen"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── IPAM ── -->
+    <div class="page" id="p-ipam">
+      <div class="ph">
+        <div class="ph-left"><h1>IPAM</h1><p>VLANs · subredes · asignaciones de IP · WAN</p></div>
+        <div class="ph-right">
+          <select id="ipam-cliente-sel" onchange="ipamLoadVlans()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px">
+            <option value="">— Todos los clientes —</option>
+          </select>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-sm" id="ipam-tab-vlans" onclick="ipamTab('vlans')">VLANs</button>
+        <button class="btn btn-sm btn-secondary" id="ipam-tab-subredes" onclick="ipamTab('subredes')">Subredes</button>
+        <button class="btn btn-sm btn-secondary" id="ipam-tab-wan" onclick="ipamTab('wan')">WAN</button>
+      </div>
+      <!-- VLANs -->
+      <div id="ipam-panel-vlans">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>VLANs</h3>
+            <button class="btn btn-sm" onclick="ipamNuevaVlan()">+ VLAN</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>#</th><th>Nombre</th><th>Cliente</th><th>Color</th><th>Subredes</th><th></th></tr></thead>
+            <tbody id="ipam-vlans-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <!-- Subredes -->
+      <div id="ipam-panel-subredes" style="display:none">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Subredes</h3>
+            <button class="btn btn-sm" onclick="ipamNuevaSubred()">+ Subred</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>CIDR</th><th>Gateway</th><th>VLAN</th><th>Sitio</th><th>Asig.</th><th></th></tr></thead>
+            <tbody id="ipam-subredes-body"></tbody></table>
+          </div>
+        </div>
+        <!-- Mapa de IPs -->
+        <div id="ipam-mapa-panel" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-head"><h3 id="ipam-mapa-titulo">Mapa de IPs</h3></div>
+            <div class="card-body">
+              <div id="ipam-mapa-grid" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+              <div style="margin-top:12px;display:flex;gap:16px;font-size:11px;color:var(--text3)">
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;margin-right:4px"></span>Libre</span>
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;margin-right:4px"></span>Asignada</span>
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--warning);border-radius:2px;margin-right:4px"></span>Reservada</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- WAN -->
+      <div id="ipam-panel-wan" style="display:none">
+        <div class="card">
+          <div class="card-head"><h3>Conexiones WAN</h3></div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Sitio</th><th>ISP</th><th>Producto</th><th>IP Pública</th><th>Mbps</th></tr></thead>
+            <tbody id="ipam-wan-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FIBRA OPTICA ── -->
+    <div class="page" id="p-fibra">
+      <div class="ph">
+        <div class="ph-left"><h1>Fibra Óptica</h1><p>ODFs · empalmes · mediciones OTDR</p></div>
+        <div class="ph-right">
+          <button class="btn btn-sm" onclick="fibraLoadOdfs()">↺ Actualizar</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-sm" id="fibra-tab-odfs" onclick="fibraTab('odfs')">ODFs</button>
+        <button class="btn btn-sm btn-secondary" id="fibra-tab-otdr" onclick="fibraTab('otdr')">Mediciones OTDR</button>
+      </div>
+      <!-- ODFs -->
+      <div id="fibra-panel-odfs">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>ODFs (Organizadores de Fibra)</h3>
+            <button class="btn btn-sm" onclick="fibraNuevoOdf()">+ ODF</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Código</th><th>Categoría</th><th>Cuarto</th><th>Sitio</th><th>Puertos</th><th></th></tr></thead>
+            <tbody id="fibra-odfs-body"></tbody></table>
+          </div>
+        </div>
+        <!-- Detalle ODF -->
+        <div id="fibra-odf-detalle" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-head"><h3 id="fibra-odf-titulo">Detalle ODF</h3></div>
+            <div class="card-body">
+              <div id="fibra-odf-puertos" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- OTDR -->
+      <div id="fibra-panel-otdr" style="display:none">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Mediciones OTDR</h3>
+            <button class="btn btn-sm" onclick="fibraNuevaOtdr()">+ Medición</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Fecha</th><th>Longitud (m)</th><th>Pérdida (dB)</th><th>Resultado</th><th>Notas</th></tr></thead>
+            <tbody id="fibra-otdr-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CREDENCIALES ── -->
+    <div class="page" id="p-credenciales">
+      <div class="ph">
+        <div class="ph-left"><h1>Credenciales</h1><p>Contraseñas cifradas · licencias · tenants de correo</p></div>
+        <div class="ph-right">
+          <select id="cred-cliente-sel" onchange="credLoad()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px">
+            <option value="">— Todos los clientes —</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-sm" id="cred-tab-creds" onclick="credTab('creds')">Credenciales</button>
+        <button class="btn btn-sm btn-secondary" id="cred-tab-licencias" onclick="credTab('licencias')">Licencias</button>
+        <button class="btn btn-sm btn-secondary" id="cred-tab-tenants" onclick="credTab('tenants')">Tenants Correo</button>
+      </div>
+      <!-- Credenciales -->
+      <div id="cred-panel-creds">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Credenciales</h3>
+            <button class="btn btn-sm" onclick="credNueva()">+ Credencial</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Servicio</th><th>Usuario</th><th>URL</th><th>Cliente</th><th>Equipo</th><th></th></tr></thead>
+            <tbody id="cred-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <!-- Licencias -->
+      <div id="cred-panel-licencias" style="display:none">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Licencias</h3>
+            <button class="btn btn-sm" onclick="credNuevaLicencia()">+ Licencia</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Vencimiento</th><th>Estado</th><th>Activaciones</th><th>Proveedor</th></tr></thead>
+            <tbody id="cred-lic-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <!-- Tenants -->
+      <div id="cred-panel-tenants" style="display:none">
+        <div class="card">
+          <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Tenants de Correo</h3>
+            <button class="btn btn-sm" onclick="credNuevoTenant()">+ Tenant</button>
+          </div>
+          <div class="card-body" style="padding:0">
+            <table class="table"><thead><tr><th>Dominio</th><th>Proveedor</th><th>Admin</th><th>Cuentas</th><th>Cliente</th></tr></thead>
+            <tbody id="cred-tenants-body"></tbody></table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── PROJECTS ── -->
@@ -525,17 +775,187 @@ function nav(page, el=null){
   const loaders={
     dashboard:loadDashboard, clients:loadClients,
     audit:loadAudit, users:loadUsers,
+    sitios:loadSitios,
+    trazabilidad:()=>{document.getElementById('traza-search').focus();},
+    ipam:()=>{ ipamLoadClientes(); ipamTab('vlans'); },
+    fibra:()=>{ fibraTab('odfs'); },
+    credenciales:()=>{ credLoadClientes(); credTab('creds'); },
     search:()=>{document.getElementById('search-q').focus();},
   };
   loaders[page]?.();
 }
 
+// ══ SITIOS ════════════════════════════════════════════════════════════════════
+async function loadSitios(){
+  const res = await api('/sitios');
+  const sitios = await res.json();
+  const cont = document.getElementById('sitios-tree');
+  if(!sitios.length){
+    cont.innerHTML='<div class="card-body" style="padding:24px;color:var(--text3)">Sin sitios registrados. Crea el primero con el botón +</div>';
+    return;
+  }
+  // Agrupar por cliente
+  const byCliente = {};
+  for(const s of sitios){
+    if(!byCliente[s.cliente_nombre]) byCliente[s.cliente_nombre]=[];
+    byCliente[s.cliente_nombre].push(s);
+  }
+  let html='';
+  for(const [cliente, ss] of Object.entries(byCliente)){
+    html+=`<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.5px;margin-bottom:8px;padding:0 4px">🏢 ${cliente}</div>`;
+    for(const s of ss){
+      html+=`<div class="sitio-card">
+        <div class="sitio-header" onclick="toggleSitio('s-${s.id}')">
+          <div>
+            <span style="font-weight:600;font-size:14px">🗺️ ${s.nombre}</span>
+            ${s.direccion?`<span style="font-size:11px;color:var(--text3);margin-left:8px">${s.direccion}</span>`:''}
+          </div>
+          <span style="font-size:11px;color:var(--text3)" id="s-toggle-${s.id}">▼</span>
+        </div>
+        <div class="sitio-body" id="s-${s.id}" style="display:none">
+          <div id="s-loading-${s.id}" style="padding:12px 16px;color:var(--text3);font-size:12px">Cargando...</div>
+        </div>
+      </div>`;
+    }
+    html+='</div>';
+  }
+  cont.innerHTML=html;
+}
+
+async function toggleSitio(id){
+  const panel = document.getElementById(id);
+  const toggle = document.getElementById('s-toggle-'+id.replace('s-',''));
+  if(!panel) return;
+  if(panel.style.display==='none'){
+    panel.style.display='block';
+    toggle.textContent='▲';
+    const sitioId = id.replace('s-','');
+    const res = await api(`/sitios/${sitioId}/topologia`);
+    const data = await res.json();
+    let html='';
+    for(const edif of (data.edificios||[])){
+      html+=`<div class="edif-row">🏗️ <strong>Edificio ${edif.codigo}</strong> — ${edif.nombre}</div>`;
+      for(const cu of (edif.cuartos||[])){
+        html+=`<div class="cuarto-row" title="Ver cuarto">
+          📦 ${cu.codigo} — ${cu.nombre}
+          <span style="margin-left:auto;font-size:10px;color:var(--text3)">Piso ${cu.piso}</span>
+          ${cu.gabinetes?.length?`<span style="font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1px 6px">${cu.gabinetes.length} gab.</span>`:''}
+        </div>`;
+      }
+    }
+    if(!html) html='<div style="padding:12px 32px;color:var(--text3);font-size:12px">Sin edificios registrados</div>';
+    document.getElementById('s-loading-'+id.replace('s-','')).outerHTML=html;
+  } else {
+    panel.style.display='none';
+    toggle.textContent='▼';
+  }
+}
+
+function openModalSitio(){
+  // Construir select de clientes
+  showModal('Nuevo sitio',`
+    <label>Cliente</label>
+    <select id="ns-cliente" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);margin-bottom:10px">
+      <option value="">Selecciona cliente...</option>
+    </select>
+    <label>Nombre del sitio</label>
+    <input id="ns-nombre" type="text" placeholder="Ej: Canoa, Sede Central…" style="width:100%">
+    <label style="margin-top:10px;display:block">Dirección (opcional)</label>
+    <input id="ns-dir" type="text" placeholder="Dirección física" style="width:100%">
+  `,'Crear',async()=>{
+    const cliente_id = parseInt(document.getElementById('ns-cliente').value);
+    const nombre = document.getElementById('ns-nombre').value.trim();
+    if(!cliente_id||!nombre){alert('Cliente y nombre son obligatorios');return;}
+    const r = await api('/sitios','POST',{cliente_id,nombre,direccion:document.getElementById('ns-dir').value||null});
+    if(r.ok){closeModal();loadSitios();}
+    else alert('Error al crear sitio');
+  });
+  // Cargar clientes en el select
+  api('/clients').then(r=>r.json()).then(cl=>{
+    const sel=document.getElementById('ns-cliente');
+    cl.forEach(c=>sel.innerHTML+=`<option value="${c.id}">${c.name}</option>`);
+  });
+}
+
+// ══ TRAZABILIDAD ══════════════════════════════════════════════════════════════
+let _epTimeout = null;
+function buscarEndpoints(q){
+  clearTimeout(_epTimeout);
+  if(!q||q.length<2){document.getElementById('endpoint-results').innerHTML='';return;}
+  _epTimeout=setTimeout(async()=>{
+    const res = await api(`/trazabilidad/endpoints?q=${encodeURIComponent(q)}`);
+    const eps = await res.json();
+    const cont = document.getElementById('endpoint-results');
+    if(!eps.length){cont.innerHTML='<p style="color:var(--text3);font-size:12px">Sin resultados</p>';return;}
+    cont.innerHTML=eps.map(e=>`
+      <div onclick="mostrarTraza('${e.id}','${e.nombre.replace(/'/g,"\\'")}');this.parentNode.querySelectorAll('div').forEach(d=>d.classList.remove('active'));this.classList.add('active')"
+        style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer;transition:all .15s;display:flex;justify-content:space-between;align-items:center"
+        onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
+        <div>
+          <div style="font-weight:600;font-size:13px">${e.nombre}</div>
+          <div style="font-size:11px;color:var(--text3)">${e.tipo} · IP: ${e.ip||'—'} · ${e.sitio_nombre||e.cliente_nombre||''}</div>
+        </div>
+        <span style="font-size:11px;color:var(--primary)">Ver traza →</span>
+      </div>
+    `).join('');
+  },350);
+}
+
+async function mostrarTraza(endpointId, nombre){
+  const panel = document.getElementById('traza-panel');
+  document.getElementById('traza-titulo').textContent=`Trazando: ${nombre}`;
+  document.getElementById('traza-hops').innerHTML='<div style="padding:20px;color:var(--text3);font-size:12px">Calculando traza…</div>';
+  document.getElementById('traza-resumen').textContent='';
+  panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+
+  const res = await api(`/trazabilidad/endpoint/${endpointId}`);
+  const data = await res.json();
+
+  const badge = document.getElementById('traza-estado-badge');
+  badge.className='traza-estado-'+data.estado_global;
+  badge.textContent = data.estado_global==='verde'?'✓ OK' : data.estado_global==='rojo'?'✗ FALLA':'⚠ Incompleto';
+
+  let html='';
+  const hops = data.hops||[];
+  for(let i=0;i<hops.length;i++){
+    const h=hops[i];
+    const esConector=['cable','jumper','empalme_fibra'].includes(h.tipo);
+    if(esConector){
+      html+=`<div class="hop-connector">↕ ${h.label} <span style="color:var(--text3)">${h.detalle||''}</span></div>`;
+    } else {
+      const showLine = i < hops.length-1;
+      html+=`<div class="hop-row">
+        <div class="hop-semaforo">
+          <div class="hop-dot ${h.estado||'verde'}"></div>
+          ${showLine?'<div class="hop-line"></div>':''}
+        </div>
+        <div class="hop-body">
+          <div><span class="hop-label">${h.label}</span><span class="hop-tipo-badge">${_tipoLabel(h.tipo)}</span></div>
+          ${h.detalle?`<div class="hop-detalle">${h.detalle}</div>`:''}
+        </div>
+      </div>`;
+    }
+  }
+  if(!hops.length) html='<div style="padding:20px;color:var(--text3)">Sin hops — endpoint sin faceplate asignado</div>';
+
+  document.getElementById('traza-hops').innerHTML=html;
+  document.getElementById('traza-resumen').textContent=data.resumen||'';
+}
+
+function _tipoLabel(t){
+  const m={endpoint:'Endpoint',faceplate:'Faceplate',patch_panel_port:'Patch Panel',
+    switch_port:'Switch',router_port:'Router',fiber_odf_port:'ODF',
+    cable:'Cable',jumper:'Jumper',empalme_fibra:'Empalme'};
+  return m[t]||t;
+}
+
 // ═══════════════════════════════════════════════════════════ DASHBOARD
 async function loadDashboard(){
   try{
-    const [clients,devs] = await Promise.all([
-      api('GET','/api/clients'),
-      api('GET','/api/search?q=a').catch(()=>({patch_ports:[],devices:[]})),
+    const [clients] = await Promise.all([
+      api('/clients'),
     ]);
     const cl = clients||[];
     const totalRooms = cl.reduce((s,c)=>s+(c.room_count||0),0);
@@ -924,45 +1344,61 @@ function downloadPDF(){
 }
 
 // ═══════════════════════════════════════════════════════════ SEARCH
+const _TIPO_LABELS = {
+  endpoint:'Endpoints', equipo:'Equipos', sitio:'Sitios', cuarto:'Cuartos',
+  cable:'Cables', patch_port:'Puertos (legacy)', device:'Equipos (legacy)'
+};
+const _TIPO_ICONS = {
+  endpoint:'💻', equipo:'🖥️', sitio:'🗺️', cuarto:'📦',
+  cable:'🔌', patch_port:'🔧', device:'🖥️'
+};
+
 function doSearch(q){
   clearTimeout(_searchTimer);
-  if(q.length<2){document.getElementById('search-results').innerHTML='';return;}
+  const cont = document.getElementById('search-results');
+  if(q.length<2){cont.innerHTML='';return;}
   _searchTimer = setTimeout(async()=>{
     try{
-      const data = await api('GET',`/api/search?q=${encodeURIComponent(q)}`);
-      const ports = data.patch_ports||[];
-      const devs = data.devices||[];
+      const data = await api(`/search?q=${encodeURIComponent(q)}`);
+      const grupos = Object.entries(data);
+      if(!grupos.length){cont.innerHTML=`<div class="empty">Sin resultados para "${q}"</div>`;return;}
       let html='';
-      if(ports.length){
-        html+=`<div class="section-label" style="margin-top:12px">Puertos PP (${ports.length})</div>`;
-        html+=`<div class="table-wrap"><table><thead><tr><th>Etiqueta</th><th>IP</th><th>MAC</th><th>Cuarto</th><th>Cliente</th></tr></thead><tbody>`;
-        html+=ports.map(p=>`<tr>
-          <td><code>${p.label||'-'}</code></td>
-          <td><code>${p.ip||'-'}</code></td>
-          <td><code style="font-size:10px">${p.mac||'-'}</code></td>
-          <td>${p.room||'-'}</td>
-          <td><span style="cursor:pointer;color:var(--primary)" onclick="openClientDetail(${p.client_id},'${(p.client||'').replace(/'/g,"\\'")}') ">${p.client||'-'}</span></td>
-        </tr>`).join('');
-        html+=`</tbody></table></div>`;
+      for(const [tipo, items] of grupos){
+        const label = _TIPO_LABELS[tipo]||tipo;
+        const icon = _TIPO_ICONS[tipo]||'📄';
+        html+=`<div class="section-label" style="margin-top:14px">${icon} ${label} (${items.length})</div>`;
+        html+=`<div style="display:flex;flex-direction:column;gap:4px">`;
+        for(const r of items){
+          const navAction = r.nav==='trazabilidad'
+            ? `nav('trazabilidad');setTimeout(()=>{document.getElementById('traza-search').value='${r.label.replace(/'/g,"\\'")}';buscarEndpoints('${r.label.replace(/'/g,"\\'")}');},100)`
+            : r.nav==='clients' && r.nav_id
+            ? `openClientDetail(${r.nav_id},'${(r.badge||'').replace(/'/g,"\\'")}')`
+            : `nav('${r.nav}')`;
+          html+=`<div onclick="${navAction}"
+            style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;background:var(--bg2)"
+            onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background='var(--bg2)'">
+            <div>
+              <div style="font-size:13px;font-weight:600">${r.label}</div>
+              <div style="font-size:11px;color:var(--text3)">${r.sub||''} ${r.sitio?'· '+r.sitio:''}</div>
+            </div>
+            ${r.badge?`<span style="font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:2px 8px;color:var(--text3);white-space:nowrap">${r.badge}</span>`:''}
+          </div>`;
+        }
+        html+='</div>';
       }
-      if(devs.length){
-        html+=`<div class="section-label" style="margin-top:16px">Equipos (${devs.length})</div>`;
-        html+=`<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Tipo</th><th>IP</th><th>MAC</th><th>Cuarto</th><th>Cliente</th></tr></thead><tbody>`;
-        html+=devs.map(d=>`<tr>
-          <td><strong>${d.name}</strong></td>
-          <td><span class="badge badge-blue">${d.device_type}</span></td>
-          <td><code>${d.ip||'-'}</code></td>
-          <td><code style="font-size:10px">${d.mac||'-'}</code></td>
-          <td>${d.room||'-'}</td>
-          <td><span style="cursor:pointer;color:var(--primary)" onclick="openClientDetail(${d.client_id},'${(d.client||'').replace(/'/g,"\\'")}') ">${d.client||'-'}</span></td>
-        </tr>`).join('');
-        html+=`</tbody></table></div>`;
-      }
-      if(!ports.length&&!devs.length) html='<div class="empty">Sin resultados para "'+q+'"</div>';
-      document.getElementById('search-results').innerHTML=html;
-    }catch(e){document.getElementById('search-results').innerHTML=`<div class="empty">${e.message}</div>`;}
+      cont.innerHTML=html;
+    }catch(e){cont.innerHTML=`<div class="empty">${e.message}</div>`;}
   },300);
 }
+
+// ⌘K / Ctrl+K — abrir búsqueda global
+document.addEventListener('keydown', e=>{
+  if((e.metaKey||e.ctrlKey) && e.key==='k'){
+    e.preventDefault();
+    nav('search');
+    setTimeout(()=>document.getElementById('search-q').focus(),50);
+  }
+});
 
 // ═══════════════════════════════════════════════════════════ IMPORT
 function handleDrop(event){
@@ -1574,6 +2010,290 @@ function toggleNodeType(){
     if(cfg?.google_auth_enabled) document.getElementById('g-btn').style.display='flex';
   }catch{}
 })();
+
+// ══ IPAM ══════════════════════════════════════════════════════════════════════
+let _ipamTab = 'vlans';
+
+function ipamTab(t){
+  _ipamTab = t;
+  ['vlans','subredes','wan'].forEach(x=>{
+    document.getElementById(`ipam-panel-${x}`).style.display = x===t?'block':'none';
+    const b = document.getElementById(`ipam-tab-${x}`);
+    if(b){ b.className = x===t ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
+  });
+  if(t==='vlans') ipamLoadVlans();
+  if(t==='subredes') ipamLoadSubredes();
+  if(t==='wan') ipamLoadWan();
+}
+
+async function ipamLoadClientes(){
+  const sel = document.getElementById('ipam-cliente-sel');
+  if(sel.options.length>1) return;
+  const cl = await api('GET','/api/clients').catch(()=>[]) || [];
+  cl.forEach(c=>{ const o=new Option(c.name,c.id); sel.add(o); });
+}
+
+async function ipamLoadVlans(){
+  const cid = document.getElementById('ipam-cliente-sel').value;
+  const q = cid ? `?cliente_id=${cid}` : '';
+  const rows = await api('GET',`/api/ipam/vlans${q}`).catch(()=>[]) || [];
+  document.getElementById('ipam-vlans-body').innerHTML = rows.map(v=>`
+    <tr>
+      <td><span style="font-weight:700;font-family:monospace">${v.vlan_id}</span></td>
+      <td>${v.nombre}</td>
+      <td>${v.cliente_nombre||'—'}</td>
+      <td><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${v.color_hex||'#888'};vertical-align:middle"></span> ${v.color_hex||'—'}</td>
+      <td>${v.subredes_count||0}</td>
+      <td><button class="btn btn-sm btn-secondary btn-danger" onclick="ipamEliminarVlan('${v.id}')">✕</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin VLANs</td></tr>';
+}
+
+async function ipamLoadSubredes(){
+  const cid = document.getElementById('ipam-cliente-sel').value;
+  const q = cid ? `?cliente_id=${cid}` : '';
+  const rows = await api('GET',`/api/ipam/subredes${q}`).catch(()=>[]) || [];
+  document.getElementById('ipam-subredes-body').innerHTML = rows.map(s=>`
+    <tr>
+      <td><a href="#" onclick="ipamVerMapa('${s.id}','${s.cidr_text||s.cidr}');return false" style="color:var(--primary);font-family:monospace">${s.cidr_text||s.cidr}</a></td>
+      <td style="font-family:monospace">${s.gateway_text||s.gateway||'—'}</td>
+      <td>${s.vlan_nombre||'—'}${s.vlan_num?' ('+s.vlan_num+')':''}</td>
+      <td>${s.sitio_nombre||'—'}</td>
+      <td>${s.asignaciones_count||0}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="ipamVerMapa('${s.id}','${s.cidr_text||s.cidr}')">🗺</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin subredes</td></tr>';
+}
+
+async function ipamVerMapa(subred_id, titulo){
+  const data = await api('GET',`/api/ipam/subredes/${subred_id}/mapa`).catch(()=>null);
+  if(!data) return;
+  const panel = document.getElementById('ipam-mapa-panel');
+  document.getElementById('ipam-mapa-titulo').textContent = `Mapa: ${titulo}`;
+  panel.style.display = 'block';
+  const asigMap = {};
+  (data.asignaciones||[]).forEach(a=>{ asigMap[a.ip]=a; });
+  const cidr = data.subred.cidr_text || data.subred.cidr;
+  const parts = cidr.split('/');
+  const prefix = parseInt(parts[1]);
+  const total = Math.min(256, Math.pow(2, 32-prefix));
+  const base = data.subred.red;
+  const baseParts = base.split('.').map(Number);
+  let html='';
+  for(let i=0;i<total;i++){
+    const ip = baseParts.slice(0,3).join('.')+'.'+((baseParts[3]+i)%256);
+    const a = asigMap[ip];
+    const color = !a ? 'var(--success)' : a.tipo==='reservada' ? 'var(--warning)' : 'var(--danger)';
+    const tip = a ? `${ip}\n${a.endpoint_nombre||a.equipo_nombre||a.tipo}` : ip;
+    html+=`<div title="${tip}" style="width:14px;height:14px;border-radius:2px;background:${color};cursor:${a?'pointer':'default'}" onclick="${a?`alert('${ip}: ${a.endpoint_nombre||a.equipo_nombre||a.descripcion||a.tipo}')`:''}"  ></div>`;
+  }
+  document.getElementById('ipam-mapa-grid').innerHTML = html;
+  panel.scrollIntoView({behavior:'smooth'});
+}
+
+async function ipamLoadWan(){
+  const rows = await api('GET','/api/ipam/wan').catch(()=>[]) || [];
+  document.getElementById('ipam-wan-body').innerHTML = rows.map(w=>`
+    <tr>
+      <td>${w.sitio_nombre||'—'}</td>
+      <td>${w.isp}</td>
+      <td>${w.producto||'—'}</td>
+      <td style="font-family:monospace">${w.ip_publica_text||w.ip_publica||'—'}</td>
+      <td>${w.ancho_banda_mbps||'—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin enlaces WAN</td></tr>';
+}
+
+function ipamNuevaVlan(){
+  openModal('Nueva VLAN',`
+    <div class="form-group"><label>Cliente</label><select id="f-vlan-cli" class="form-control"><option value="">Cargando…</option></select></div>
+    <div class="form-group"><label>VLAN ID (1-4094)</label><input id="f-vlan-id" type="number" class="form-control" min="1" max="4094"></div>
+    <div class="form-group"><label>Nombre</label><input id="f-vlan-nom" class="form-control"></div>
+    <div class="form-group"><label>Color hex</label><input id="f-vlan-col" class="form-control" placeholder="#4A9EFF"></div>
+  `,async()=>{
+    await api('POST','/api/ipam/vlans',{cliente_id:+document.getElementById('f-vlan-cli').value,vlan_id:+document.getElementById('f-vlan-id').value,nombre:document.getElementById('f-vlan-nom').value,color_hex:document.getElementById('f-vlan-col').value||null});
+    toast('VLAN creada','success'); ipamLoadVlans();
+  });
+  api('GET','/api/clients').then(cl=>{ const s=document.getElementById('f-vlan-cli'); s.innerHTML=cl.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); });
+}
+
+function ipamNuevaSubred(){
+  toast('Use /api/ipam/subredes via API — UI en desarrollo','info');
+}
+
+async function ipamEliminarVlan(id){
+  if(!confirm('¿Eliminar VLAN?')) return;
+  await api('DELETE',`/api/ipam/vlans/${id}`);
+  toast('VLAN eliminada','success'); ipamLoadVlans();
+}
+
+// ══ FIBRA ══════════════════════════════════════════════════════════════════════
+let _fibraTab = 'odfs';
+
+function fibraTab(t){
+  _fibraTab = t;
+  ['odfs','otdr'].forEach(x=>{
+    document.getElementById(`fibra-panel-${x}`).style.display = x===t?'block':'none';
+    const b = document.getElementById(`fibra-tab-${x}`);
+    if(b){ b.className = x===t ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
+  });
+  if(t==='odfs') fibraLoadOdfs();
+  if(t==='otdr') fibraLoadOtdr();
+}
+
+async function fibraLoadOdfs(){
+  const rows = await api('GET','/api/fibra/odfs').catch(()=>[]) || [];
+  document.getElementById('fibra-odfs-body').innerHTML = rows.map(o=>`
+    <tr>
+      <td><a href="#" onclick="fibraVerOdf('${o.id}','${o.codigo}');return false" style="color:var(--primary)">${o.codigo}</a></td>
+      <td>${o.categoria||'—'}</td>
+      <td>${o.cuarto_nombre||'—'}</td>
+      <td>${o.sitio_nombre||'—'}</td>
+      <td>${o.puertos_count||0} / ${o.puertos_total}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="fibraVerOdf('${o.id}','${o.codigo}')">Ver</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin ODFs registrados</td></tr>';
+}
+
+async function fibraVerOdf(odf_id, codigo){
+  const data = await api('GET',`/api/fibra/odfs/${odf_id}`).catch(()=>null);
+  if(!data) return;
+  document.getElementById('fibra-odf-titulo').textContent = `ODF ${codigo} — ${data.cuarto_nombre||''}`;
+  const panel = document.getElementById('fibra-odf-detalle');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth'});
+  const puertos = data.puertos || [];
+  document.getElementById('fibra-odf-puertos').innerHTML = puertos.map(p=>`
+    <div title="${p.etiqueta_norm||p.numero}" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--border);background:${p.empalme_salida_id?'var(--primary)':'var(--bg3)'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;cursor:pointer;color:${p.empalme_salida_id?'#fff':'var(--text3)'}">${p.numero}</div>
+  `).join('');
+}
+
+async function fibraLoadOtdr(){
+  const rows = await api('GET','/api/fibra/otdr').catch(()=>[]) || [];
+  document.getElementById('fibra-otdr-body').innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r.fecha_medicion||'—'}</td>
+      <td style="font-family:monospace">${r.longitud_m!=null?r.longitud_m:'—'}</td>
+      <td style="font-family:monospace;color:${r.perdida_total_db>3?'var(--danger)':'inherit'}">${r.perdida_total_db!=null?r.perdida_total_db:'—'}</td>
+      <td><span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${r.resultado==='ok'?'var(--success)':r.resultado==='falla'?'var(--danger)':'var(--warning)'}20;color:${r.resultado==='ok'?'var(--success)':r.resultado==='falla'?'var(--danger)':'var(--warning)'}">${r.resultado||'—'}</span></td>
+      <td style="font-size:12px;color:var(--text3)">${r.notas||'—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin mediciones</td></tr>';
+}
+
+function fibraNuevoOdf(){
+  toast('Use /api/fibra/odfs via API — UI completa próximamente','info');
+}
+function fibraNuevaOtdr(){
+  toast('Use /api/fibra/otdr via API — UI completa próximamente','info');
+}
+
+// ══ CREDENCIALES ══════════════════════════════════════════════════════════════
+let _credTab = 'creds';
+
+function credTab(t){
+  _credTab = t;
+  ['creds','licencias','tenants'].forEach(x=>{
+    document.getElementById(`cred-panel-${x}`).style.display = x===t?'block':'none';
+    const b = document.getElementById(`cred-tab-${x}`);
+    if(b){ b.className = x===t ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
+  });
+  if(t==='creds') credLoad();
+  if(t==='licencias') credLoadLicencias();
+  if(t==='tenants') credLoadTenants();
+}
+
+async function credLoadClientes(){
+  const sel = document.getElementById('cred-cliente-sel');
+  if(sel.options.length>1) return;
+  const cl = await api('GET','/api/clients').catch(()=>[]) || [];
+  cl.forEach(c=>{ const o=new Option(c.name,c.id); sel.add(o); });
+}
+
+async function credLoad(){
+  const cid = document.getElementById('cred-cliente-sel').value;
+  const q = cid ? `?cliente_id=${cid}` : '';
+  const rows = await api('GET',`/api/credenciales${q}`).catch(()=>[]) || [];
+  document.getElementById('cred-body').innerHTML = rows.map(r=>`
+    <tr>
+      <td><strong>${r.servicio}</strong></td>
+      <td style="font-family:monospace">${r.usuario||'—'}</td>
+      <td>${r.url?`<a href="${r.url}" target="_blank" style="color:var(--primary)">${r.url.substring(0,40)}</a>`:'—'}</td>
+      <td>${r.cliente_nombre||'—'}</td>
+      <td>${r.equipo_nombre||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-secondary" onclick="credRevelar('${r.id}','${r.servicio.replace(/'/g,"\\'")}')" title="Revelar contraseña">👁</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin credenciales</td></tr>';
+}
+
+async function credRevelar(id, servicio){
+  try{
+    const data = await api('GET',`/api/credenciales/${id}/reveal`);
+    if(!data) return;
+    alert(`Servicio: ${servicio}\nUsuario: ${data.usuario||'—'}\nContraseña: ${data.password||'(vacía)'}`);
+  }catch(e){ toast(e.message,'error'); }
+}
+
+async function credLoadLicencias(){
+  const cid = document.getElementById('cred-cliente-sel').value;
+  const q = cid ? `?cliente_id=${cid}` : '';
+  const rows = await api('GET',`/api/credenciales/licencias${q}`).catch(()=>[]) || [];
+  const estadoColor = {vigente:'var(--success)',por_vencer:'var(--warning)',vencida:'var(--danger)',sin_fecha:'var(--text3)'};
+  const estadoLabel = {vigente:'Vigente',por_vencer:'Por vencer',vencida:'Vencida',sin_fecha:'Sin fecha'};
+  document.getElementById('cred-lic-body').innerHTML = rows.map(r=>`
+    <tr>
+      <td><strong>${r.producto}</strong></td>
+      <td>${r.tipo||'—'}</td>
+      <td style="font-family:monospace">${r.fecha_vencimiento||'—'}</td>
+      <td><span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${estadoColor[r.estado]||'#888'}20;color:${estadoColor[r.estado]||'#888'}">${estadoLabel[r.estado]||r.estado}</span></td>
+      <td>${r.activaciones_usadas!=null?r.activaciones_usadas:0} / ${r.activaciones_max||'∞'}</td>
+      <td>${r.proveedor||'—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin licencias</td></tr>';
+}
+
+async function credLoadTenants(){
+  const cid = document.getElementById('cred-cliente-sel').value;
+  const q = cid ? `?cliente_id=${cid}` : '';
+  const rows = await api('GET',`/api/credenciales/tenants${q}`).catch(()=>[]) || [];
+  document.getElementById('cred-tenants-body').innerHTML = rows.map(r=>`
+    <tr>
+      <td><strong>${r.dominio}</strong></td>
+      <td>${r.proveedor||'—'}</td>
+      <td>${r.admin_user||'—'}</td>
+      <td>${r.cuentas_count||0}</td>
+      <td>${r.cliente_nombre||'—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin tenants</td></tr>';
+}
+
+function credNueva(){
+  openModal('Nueva Credencial',`
+    <div class="form-group"><label>Cliente</label><select id="f-cred-cli" class="form-control"><option value="">Cargando…</option></select></div>
+    <div class="form-group"><label>Servicio *</label><input id="f-cred-srv" class="form-control" placeholder="SW-CORE-01 SSH"></div>
+    <div class="form-group"><label>Usuario</label><input id="f-cred-usr" class="form-control"></div>
+    <div class="form-group"><label>Contraseña</label><input id="f-cred-pw" type="password" class="form-control"></div>
+    <div class="form-group"><label>URL</label><input id="f-cred-url" class="form-control" placeholder="ssh://192.168.1.1"></div>
+    <div class="form-group"><label>Notas</label><textarea id="f-cred-notas" class="form-control" rows="2"></textarea></div>
+  `,async()=>{
+    const cid = +document.getElementById('f-cred-cli').value;
+    const srv = document.getElementById('f-cred-srv').value.trim();
+    if(!cid||!srv){toast('Cliente y servicio son obligatorios','error');return;}
+    await api('POST','/api/credenciales',{cliente_id:cid,servicio:srv,usuario:document.getElementById('f-cred-usr').value||null,password:document.getElementById('f-cred-pw').value||null,url:document.getElementById('f-cred-url').value||null,notas:document.getElementById('f-cred-notas').value||null});
+    toast('Credencial guardada','success'); credLoad();
+  });
+  api('GET','/api/clients').then(cl=>{ const s=document.getElementById('f-cred-cli'); s.innerHTML=cl.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); });
+}
+
+function credNuevaLicencia(){
+  toast('Use /api/credenciales/licencias via API — UI en desarrollo','info');
+}
+
+function credNuevoTenant(){
+  toast('Use /api/credenciales/tenants via API — UI en desarrollo','info');
+}
 </script>
 </body>
 </html>
