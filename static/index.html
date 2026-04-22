@@ -1367,7 +1367,6 @@ function renderPortsList(ports, ppId, roomId){
   const inp='background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:11px;width:100%;padding:2px 4px;outline:none;font-family:inherit';
   const inpFocus='onFocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg2)\'"';
   const redDevs=(window._roomSwDevs||{})[roomId]||[];
-  const devOptBase='<option value="">—</option>'+redDevs.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
 
   const rows=ports.sort((a,b)=>a.number-b.number).map(p=>{
     const nt=p.node_type||'';
@@ -1377,21 +1376,25 @@ function renderPortsList(ports, ppId, roomId){
     let linkedDevId='', linkedPortId=p.switch_port_id||'';
     if(linkedPortId){
       for(const d of redDevs){
-        const dp=(window._swPortsMap||{})[d.id]||[];
-        if(dp.some(x=>x.id===linkedPortId)){linkedDevId=String(d.id);break;}
+        if(((window._swPortsMap||{})[d.id]||[]).some(x=>x.id===linkedPortId)){
+          linkedDevId=String(d.id); break;
+        }
       }
     }
-    const devOpts=devOptBase.replace(`value="${linkedDevId}"`,`value="${linkedDevId}" selected`);
+    // build device options properly (no fragile string replace)
+    const devOpts='<option value="">—</option>'
+      +redDevs.map(d=>`<option value="${d.id}"${String(d.id)===linkedDevId?' selected':''}>${d.name}</option>`).join('');
     const devPorts=linkedDevId?((window._swPortsMap||{})[linkedDevId]||[]):[];
     const portOpts=buildSwPortOptions(devPorts,linkedPortId,p.id);
 
     return `<tr id="prow-${p.id}" style="border-bottom:1px solid var(--bg3)">`
       +`<td style="padding:3px 6px;text-align:center;color:var(--text3);font-size:11px;white-space:nowrap">${p.number}</td>`
       +`<td style="padding:3px 4px;font-family:monospace;font-size:10px;color:var(--text3);white-space:nowrap">${p.label||''}</td>`
-      // equipo + puerto — columnas prioritarias
-      +`<td style="padding:3px 4px;min-width:130px"><select id="pdev-${p.id}" style="${inp}" onchange="ppRowDevChange(${p.id},${roomId})" onblur="ppRowSave(${p.id},${ppId},${roomId})">${devOpts}</select></td>`
-      +`<td style="padding:3px 4px;min-width:90px"><select id="pport-${p.id}" style="${inp}" onblur="ppRowSave(${p.id},${ppId},${roomId})" ${!linkedDevId?'disabled':''}>${portOpts}</select></td>`
-      // resto de campos
+      // equipo: onchange solo rellena puertos, NO guarda
+      +`<td style="padding:3px 4px;min-width:130px"><select id="pdev-${p.id}" style="${inp}" onchange="ppRowDevChange(${p.id},${roomId})">${devOpts}</select></td>`
+      // puerto: onchange guarda inmediatamente
+      +`<td style="padding:3px 4px;min-width:90px"><select id="pport-${p.id}" style="${inp}" onchange="ppRowSave(${p.id},${ppId},${roomId})" ${!linkedDevId?'disabled':''}>${portOpts}</select></td>`
+      // tipo nodo
       +`<td style="padding:3px 4px;min-width:100px"><select id="pit-${p.id}" style="${inp}" onchange="ppRowTypeChange(${p.id})" onblur="ppRowSave(${p.id},${ppId},${roomId})">`
         +`<option value="" ${!nt?'selected':''}>—</option>`
         +`<option value="descripcion" ${nt==='descripcion'?'selected':''}>Descripción</option>`
@@ -1442,21 +1445,25 @@ async function ppRowSave(portId, ppId, roomId){
   const nt=document.getElementById('pit-'+portId)?.value||null;
   const desc=document.getElementById('pid-'+portId)?.value||null;
   const ip=document.getElementById('pii-'+portId)?.value||null;
+  const devId=document.getElementById('pdev-'+portId)?.value;
   const swPortId=document.getElementById('pport-'+portId)?.value;
+  // si no hay equipo seleccionado, no hay port_id posible
+  const resolvedSwPortId=(devId&&swPortId)?parseInt(swPortId):null;
   const ind=document.getElementById('pst-'+portId);
   if(ind){ind.textContent='…';ind.style.color='var(--text3)';}
   try{
+    const notLibre=nt&&nt!=='libre'&&nt!=='prevista';
     const payload={
       node_type:nt||null,
-      node_description:(nt&&nt!=='libre'&&nt!=='prevista')?desc||null:null,
-      node_ip:(nt&&nt!=='libre'&&nt!=='prevista')?ip||null:null,
-      switch_port_id:swPortId?parseInt(swPortId):null,
+      node_description:notLibre?desc||null:null,
+      node_ip:notLibre?ip||null:null,
+      switch_port_id:resolvedSwPortId,
     };
     const saved=await api('PUT',`/api/patch-ports/${portId}`,payload);
     if(ind){ind.textContent='✓';ind.style.color='var(--green)';setTimeout(()=>{ind.textContent='　';ind.style.color='';},2000);}
     if(ppPortsCache[ppId]){
       const idx=ppPortsCache[ppId].findIndex(p=>p.id===portId);
-      if(idx>=0) Object.assign(ppPortsCache[ppId][idx],saved||payload);
+      if(idx>=0) Object.assign(ppPortsCache[ppId][idx],saved||{...payload,switch_port_id:resolvedSwPortId});
     }
   }catch(e){
     if(ind){ind.textContent='✗';ind.style.color='var(--red)';}
