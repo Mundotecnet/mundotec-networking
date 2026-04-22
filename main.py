@@ -119,7 +119,7 @@ def search(
 
 # ── Excel import endpoint ─────────────────────────────────────────────────────
 from fastapi import UploadFile, File, Form
-from services.excel_importer import import_excel, preview_excel, import_into_panel
+from services.excel_importer import import_excel, preview_excel, import_into_panel, verify_import
 from services import audit as audit_svc
 from auth.jwt import require_editor
 
@@ -150,6 +150,22 @@ async def preview_excel_endpoint(
 ):
     content = await file.read()
     return preview_excel(content)
+
+
+@app.post("/api/import/verify/{pp_id}")
+async def verify_import_endpoint(
+    pp_id: int,
+    file: UploadFile = File(...),
+    sheet_index: int = Form(0),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_editor),
+):
+    content = await file.read()
+    try:
+        return verify_import(db, content, pp_id, sheet_index)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/import/into-panel/{pp_id}")

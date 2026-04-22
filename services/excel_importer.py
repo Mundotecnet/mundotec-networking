@@ -298,6 +298,101 @@ def preview_excel(file_content: bytes) -> dict:
     return {"sheets": sheets}
 
 
+# ── Verify (dry-run) ──────────────────────────────────────────────────────────
+
+def verify_import(
+    db: Session,
+    file_content: bytes,
+    patch_panel_id: int,
+    sheet_index: int = 0,
+) -> dict:
+    pp = db.query(models.PatchPanel).filter(models.PatchPanel.id == patch_panel_id).first()
+    if not pp:
+        raise ValueError("Patch panel no encontrado")
+
+    wb = openpyxl.load_workbook(BytesIO(file_content), data_only=True)
+    if sheet_index >= len(wb.sheetnames):
+        raise ValueError("Índice de hoja fuera de rango")
+
+    sheet_name = wb.sheetnames[sheet_index]
+    ws = wb[sheet_name]
+    port_data, _, _ = _parse_sheet_ports(ws)
+    if not port_data:
+        raise ValueError(f"Hoja '{sheet_name}': no se encontraron datos de puertos")
+
+    ports_by_number = {p.number: p for p in pp.ports}
+    panel_port_count = len(pp.ports)
+    excel_row_count = len(port_data)
+
+    if excel_row_count < panel_port_count:
+        # warn but continue — missing rows leave ports unchanged
+        pass
+
+    changes = []
+    for number in sorted(ports_by_number.keys()):
+        port = ports_by_number[number]
+        idx = number - 1
+        if idx >= excel_row_count:
+            changes.append({
+                "port_number": number,
+                "port_label": port.label or "",
+                "current": {
+                    "description": port.node_description or "",
+                    "mac": port.node_mac or "",
+                    "ip": port.node_ip or "",
+                    "status": port.completeness_status or "",
+                },
+                "new": None,
+                "will_change": False,
+                "skipped": True,
+            })
+            continue
+
+        e = port_data[idx]
+        detail = e.get("detail", "")
+        detected = _detect_type(detail)
+
+        if detected in ("libre", "prevista"):
+            new_state = {"description": "", "mac": "", "ip": "", "status": detected}
+        else:
+            new_state = {
+                "description": detail,
+                "mac": e.get("mac") or "",
+                "ip": e.get("ip_from_mac") or "",
+                "status": "sin_revisar",
+            }
+
+        current_state = {
+            "description": port.node_description or "",
+            "mac": port.node_mac or "",
+            "ip": port.node_ip or "",
+            "status": port.completeness_status or "",
+        }
+
+        will_change = current_state != new_state
+        changes.append({
+            "port_number": number,
+            "port_label": e.get("port_label") or port.label or "",
+            "current": current_state,
+            "new": new_state,
+            "will_change": will_change,
+            "skipped": False,
+        })
+
+    changed_count = sum(1 for c in changes if c["will_change"])
+    return {
+        "panel_id": pp.id,
+        "panel_name": pp.name,
+        "sheet_name": sheet_name,
+        "panel_port_count": panel_port_count,
+        "excel_row_count": excel_row_count,
+        "will_change": changed_count,
+        "unchanged": len([c for c in changes if not c["will_change"] and not c.get("skipped")]),
+        "skipped": len([c for c in changes if c.get("skipped")]),
+        "ports": changes,
+    }
+
+
 # ── Import into existing panel ─────────────────────────────────────────────────
 
 def import_into_panel(

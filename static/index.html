@@ -335,44 +335,62 @@ tr:hover td{background:rgba(88,166,255,.03)}
     <!-- ── IMPORT ── -->
     <div class="page" id="p-import">
       <div class="ph"><div class="ph-left"><h1>Importar Excel</h1><p>Importar puertos a un patch panel existente</p></div></div>
-      <div class="card" style="max-width:600px">
+      <div class="card" style="max-width:700px">
         <div class="card-body">
-          <!-- Paso 1: drop zone -->
-          <div class="fgroup">
-            <div id="imp-drop" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s"
-              onclick="document.getElementById('imp-file').click()"
-              ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
-              ondragleave="this.style.borderColor='var(--border)'"
-              ondrop="impHandleDrop(event)">
-              <div id="imp-drop-text">📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar</div>
-            </div>
-            <input id="imp-file" type="file" accept=".xlsx" style="display:none" onchange="impHandleFile(this)">
+
+          <!-- Paso 1: archivo -->
+          <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;margin-bottom:6px">PASO 1 — ARCHIVO</div>
+          <div id="imp-drop" style="border:2px dashed var(--border);border-radius:var(--radius);padding:24px 32px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s;margin-bottom:12px"
+            onclick="document.getElementById('imp-file').click()"
+            ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+            ondragleave="this.style.borderColor='var(--border)'"
+            ondrop="impHandleDrop(event)">
+            <div id="imp-drop-text">📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar</div>
           </div>
-          <!-- Paso 2: configuración (oculto hasta preview) -->
+          <input id="imp-file" type="file" accept=".xlsx" style="display:none" onchange="impHandleFile(this)">
+
+          <!-- Paso 2: destino + verificación -->
           <div id="imp-step2" style="display:none">
-            <hr class="divider">
+            <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+            <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;margin-bottom:10px">PASO 2 — HOJA Y DESTINO</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+              <div class="fgroup" style="margin:0">
+                <label>Hoja del Excel</label>
+                <select id="imp-sheet-sel" onchange="impOnSheetChange()" class="form-control"></select>
+              </div>
+              <div class="fgroup" style="margin:0">
+                <label>Cliente *</label>
+                <select id="imp-client-sel" onchange="impLoadRooms()" class="form-control"><option value="">— selecciona —</option></select>
+              </div>
+              <div class="fgroup" style="margin:0">
+                <label>Cuarto *</label>
+                <select id="imp-room-sel" onchange="impLoadPanels()" class="form-control"><option value="">— selecciona —</option></select>
+              </div>
+            </div>
             <div class="fgroup">
-              <label>Hoja del Excel</label>
-              <select id="imp-sheet-sel" onchange="impShowPreview()"></select>
+              <label>Patch Panel destino *</label>
+              <select id="imp-panel-sel" onchange="impOnPanelChange()" class="form-control"><option value="">— selecciona —</option></select>
             </div>
-            <div id="imp-preview-table" style="margin-bottom:12px"></div>
-            <div class="form-row">
-              <div class="fgroup"><label>Cliente *</label>
-                <select id="imp-client-sel" onchange="impLoadRooms()"><option value="">— selecciona —</option></select>
-              </div>
-              <div class="fgroup"><label>Cuarto *</label>
-                <select id="imp-room-sel" onchange="impLoadPanels()"><option value="">— selecciona —</option></select>
-              </div>
+
+            <!-- Vista previa del Excel (primeras filas) -->
+            <div id="imp-excel-preview"></div>
+
+            <!-- Botón verificar -->
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn" onclick="impVerify()" id="imp-verify-btn" disabled>🔍 Verificar cambios</button>
+              <button class="btn btn-secondary" onclick="impReset()">✕ Cancelar</button>
             </div>
-            <div class="fgroup"><label>Patch Panel destino *</label>
-              <select id="imp-panel-sel" onchange="impBuildSummary()"><option value="">— selecciona —</option></select>
-            </div>
-            <div id="imp-summary" style="margin-bottom:12px"></div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" onclick="impConfirm()" id="imp-confirm-btn" disabled>Confirmar importación</button>
-              <button class="btn btn-secondary" onclick="impReset()">Cancelar</button>
+
+            <!-- Resultado de verificación -->
+            <div id="imp-verify-result" style="margin-top:14px"></div>
+
+            <!-- Botón confirmar (solo visible tras verificar) -->
+            <div id="imp-confirm-row" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+              <button class="btn btn-primary" onclick="impConfirm()" id="imp-confirm-btn">⚡ Confirmar importación</button>
             </div>
           </div>
+
           <div id="imp-result" style="margin-top:14px"></div>
         </div>
       </div>
@@ -1608,97 +1626,172 @@ function impHandleFile(input){
 }
 function impSetFile(file){
   _impFile=file;
-  document.getElementById('imp-drop-text').textContent='📄 '+file.name+' ('+(file.size/1024).toFixed(1)+' KB)';
-  previewImport();
-}
-async function previewImport(){
-  if(!_impFile) return;
   document.getElementById('imp-drop-text').innerHTML='<span class="spinner"></span> Analizando…';
+  impAnalyze();
+}
+async function impAnalyze(){
+  if(!_impFile) return;
   try{
     const fd=new FormData();
     fd.append('file',_impFile);
     const res=await fetch(API+'/api/import/preview',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
     if(!res.ok){const e=await res.json();throw new Error(e.detail);}
-    _impSheets=await res.json();
+    const data=await res.json();
+    _impSheets=data.sheets||[];
     document.getElementById('imp-drop-text').textContent='📄 '+_impFile.name+' — '+_impSheets.length+' hoja(s)';
     const sheetSel=document.getElementById('imp-sheet-sel');
-    sheetSel.innerHTML=_impSheets.map((s,i)=>'<option value="'+i+'">'+s.sheet_name+' ('+s.port_count+' puertos)</option>').join('');
+    sheetSel.innerHTML=_impSheets.map((s,i)=>`<option value="${i}">${s.name} (${s.port_count} puertos)</option>`).join('');
     document.getElementById('imp-step2').style.display='block';
-    impShowPreview();
+    impRenderExcelPreview();
     const clients=await api('GET','/api/clients')||[];
     document.getElementById('imp-client-sel').innerHTML='<option value="">— selecciona —</option>'
-      +clients.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
+      +clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    impCheckVerifyBtn();
   }catch(e){
     document.getElementById('imp-drop-text').textContent='📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar';
     toast(e.message||'Error al analizar','error');
   }
 }
-function impShowPreview(){
+function impOnSheetChange(){
+  impRenderExcelPreview();
+  impResetVerify();
+}
+function impRenderExcelPreview(){
   const idx=parseInt(document.getElementById('imp-sheet-sel').value)||0;
   const sheet=_impSheets[idx];
-  if(!sheet||!sheet.ports) return;
-  const ports=sheet.ports.slice(0,8);
-  let html='<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Vista previa (primeros '+ports.length+' puertos):</div>'
+  if(!sheet||!sheet.ports||!sheet.ports.length){
+    document.getElementById('imp-excel-preview').innerHTML='';
+    return;
+  }
+  const ports=sheet.ports.slice(0,10);
+  let html='<div style="margin-top:10px;font-size:11px;color:var(--text3);margin-bottom:4px">Vista previa Excel — primeros '+ports.length+' de '+sheet.port_count+' puertos:</div>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
     +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border)">'
-    +'<th style="padding:3px 6px">#</th><th style="padding:3px 6px">Etiqueta</th><th style="padding:3px 6px">Descripción</th><th style="padding:3px 6px">IP</th><th style="padding:3px 6px">MAC</th>'
+    +'<th style="padding:3px 8px;text-align:left">#</th>'
+    +'<th style="padding:3px 8px;text-align:left">Etiqueta</th>'
+    +'<th style="padding:3px 8px;text-align:left">Descripción</th>'
+    +'<th style="padding:3px 8px;text-align:left">IP</th>'
+    +'<th style="padding:3px 8px;text-align:left">MAC</th>'
     +'</tr></thead><tbody>'
-    +ports.map(p=>'<tr style="border-bottom:1px solid var(--bg3)">'
-      +'<td style="padding:3px 6px;color:var(--text3)">'+p.number+'</td>'
-      +'<td style="padding:3px 6px;font-family:monospace">'+(p.label||'')+'</td>'
-      +'<td style="padding:3px 6px">'+(p.node_description||'')+'</td>'
-      +'<td style="padding:3px 6px;font-family:monospace">'+(p.node_ip||'')+'</td>'
-      +'<td style="padding:3px 6px;font-family:monospace">'+(p.node_mac||'')+'</td>'
+    +ports.map(p=>`<tr style="border-bottom:1px solid var(--bg3)">`
+      +`<td style="padding:3px 8px;color:var(--text3)">${p.number}</td>`
+      +`<td style="padding:3px 8px;font-family:monospace;font-size:10px">${p.label||''}</td>`
+      +`<td style="padding:3px 8px">${p.detail||''}</td>`
+      +`<td style="padding:3px 8px;font-family:monospace;font-size:10px">${p.ip||''}</td>`
+      +`<td style="padding:3px 8px;font-family:monospace;font-size:10px">${p.mac||''}</td>`
       +'</tr>').join('')
     +'</tbody></table></div>';
-  document.getElementById('imp-preview-table').innerHTML=html;
-  impBuildSummary();
+  document.getElementById('imp-excel-preview').innerHTML=html;
 }
 async function impLoadRooms(){
   const clientId=document.getElementById('imp-client-sel').value;
   document.getElementById('imp-room-sel').innerHTML='<option value="">— selecciona —</option>';
   document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>';
-  document.getElementById('imp-confirm-btn').disabled=true;
-  document.getElementById('imp-summary').innerHTML='';
+  impResetVerify();
   if(!clientId) return;
   const rooms=await api('GET',`/api/clients/${clientId}/rooms`)||[];
   document.getElementById('imp-room-sel').innerHTML='<option value="">— selecciona —</option>'
-    +rooms.map(r=>'<option value="'+r.id+'">'+r.name+'</option>').join('');
+    +rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
 }
 async function impLoadPanels(){
   const roomId=document.getElementById('imp-room-sel').value;
   document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>';
-  document.getElementById('imp-confirm-btn').disabled=true;
-  document.getElementById('imp-summary').innerHTML='';
+  impResetVerify();
   if(!roomId) return;
-  const allPanels=await api('GET',`/api/rooms/${roomId}/patch-panels`)||[];
-  const panels=allPanels.filter(p=>p.cabinet_id);
+  const panels=await api('GET',`/api/rooms/${roomId}/patch-panels`)||[];
   if(!panels.length){
-    document.getElementById('imp-panel-sel').innerHTML='<option value="">Sin paneles en gabinetes para este cuarto</option>';
+    document.getElementById('imp-panel-sel').innerHTML='<option value="">Sin patch panels en este cuarto</option>';
     return;
   }
   document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>'
-    +panels.map(p=>'<option value="'+p.id+'">'+p.name+'</option>').join('');
+    +panels.map(p=>`<option value="${p.id}">${p.name} (${p.port_count||0} puertos)</option>`).join('');
 }
-function impBuildSummary(){
-  const ppSel=document.getElementById('imp-panel-sel');
-  const ppId=ppSel.value;
-  const ppName=ppSel.options[ppSel.selectedIndex]?.text||'';
-  const clientSel=document.getElementById('imp-client-sel');
-  const clientName=clientSel.options[clientSel.selectedIndex]?.text||'';
-  const roomSel=document.getElementById('imp-room-sel');
-  const roomName=roomSel.options[roomSel.selectedIndex]?.text||'';
-  const sheetSel=document.getElementById('imp-sheet-sel');
-  const sheetName=sheetSel.options[sheetSel.selectedIndex]?.text||'';
-  const btn=document.getElementById('imp-confirm-btn');
-  if(!ppId){btn.disabled=true;document.getElementById('imp-summary').innerHTML='';return;}
-  document.getElementById('imp-summary').innerHTML=
-    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:12px">'
-    +'<div style="color:var(--text3);margin-bottom:4px">Resumen de importación:</div>'
-    +'<div>📄 Origen: <strong>'+sheetName+'</strong></div>'
-    +'<div>🏢 Destino: <strong>'+clientName+' › '+roomName+' › '+ppName+'</strong></div>'
+function impOnPanelChange(){
+  impResetVerify();
+  impCheckVerifyBtn();
+}
+function impCheckVerifyBtn(){
+  const ppId=document.getElementById('imp-panel-sel').value;
+  document.getElementById('imp-verify-btn').disabled=!ppId||!_impFile;
+}
+function impResetVerify(){
+  document.getElementById('imp-verify-result').innerHTML='';
+  document.getElementById('imp-confirm-row').style.display='none';
+  impCheckVerifyBtn();
+}
+async function impVerify(){
+  const ppId=document.getElementById('imp-panel-sel').value;
+  const sheetIdx=parseInt(document.getElementById('imp-sheet-sel').value)||0;
+  if(!ppId||!_impFile) return;
+  const btn=document.getElementById('imp-verify-btn');
+  btn.innerHTML='<span class="spinner"></span> Verificando…';btn.disabled=true;
+  document.getElementById('imp-verify-result').innerHTML='';
+  document.getElementById('imp-confirm-row').style.display='none';
+  try{
+    const fd=new FormData();
+    fd.append('file',_impFile);
+    fd.append('sheet_index',sheetIdx);
+    const res=await fetch(API+`/api/import/verify/${ppId}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const v=await res.json();
+    impRenderVerify(v);
+    document.getElementById('imp-confirm-row').style.display='block';
+  }catch(e){
+    document.getElementById('imp-verify-result').innerHTML=`<div style="color:var(--red);font-size:12px;margin-top:8px">❌ ${e.message}</div>`;
+    toast(e.message,'error');
+  }finally{btn.innerHTML='🔍 Verificar cambios';btn.disabled=false;}
+}
+function impRenderVerify(v){
+  const statusLabel={libre:'libre',prevista:'prevista',sin_revisar:'sin revisar',completo:'completo',parcial:'parcial'};
+  const statusColor={libre:'var(--text3)',prevista:'var(--purple)',sin_revisar:'var(--red)',completo:'var(--green)',parcial:'var(--orange)'};
+  let warningHtml='';
+  if(v.excel_row_count<v.panel_port_count){
+    warningHtml=`<div style="background:#1a1000;border:1px solid var(--orange);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--orange);margin-bottom:8px">`
+      +`⚠ El Excel tiene ${v.excel_row_count} filas pero el panel tiene ${v.panel_port_count} puertos — los puertos sin fila no se modificarán.</div>`;
+  }
+  const changed=v.ports.filter(p=>p.will_change);
+  const unchanged=v.ports.filter(p=>!p.will_change&&!p.skipped);
+  let summaryHtml=`<div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px">`
+    +`<span style="color:var(--green)">✓ ${changed.length} cambiarán</span>`
+    +`<span style="color:var(--text3)">= ${unchanged.length} sin cambio</span>`
+    +(v.skipped?`<span style="color:var(--text3)">⊘ ${v.skipped} sin fila en Excel</span>`:'')
+    +`</div>`;
+
+  let tableHtml='<div style="overflow-x:auto;max-height:360px;overflow-y:auto">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+    +'<thead style="position:sticky;top:0;background:var(--bg2)"><tr style="color:var(--text3);border-bottom:1px solid var(--border)">'
+    +'<th style="padding:4px 8px;text-align:left">Puerto</th>'
+    +'<th style="padding:4px 8px;text-align:left">Descripción actual</th>'
+    +'<th style="padding:4px 8px;text-align:left">Nueva descripción</th>'
+    +'<th style="padding:4px 8px;text-align:left">IP nueva</th>'
+    +'<th style="padding:4px 8px;text-align:left">MAC nueva</th>'
+    +'<th style="padding:4px 8px;text-align:left">Estado nuevo</th>'
+    +'<th style="padding:4px 8px"></th>'
+    +'</tr></thead><tbody>'
+    +v.ports.map(p=>{
+      if(p.skipped) return `<tr style="opacity:.4;border-bottom:1px solid var(--bg3)">`
+        +`<td style="padding:4px 8px;font-family:monospace;font-size:10px">${p.port_label||p.port_number}</td>`
+        +`<td colspan="5" style="padding:4px 8px;color:var(--text3);font-style:italic">sin fila en Excel — no se modifica</td>`
+        +`<td style="padding:4px 8px">⊘</td></tr>`;
+      const rowStyle=p.will_change?'background:rgba(88,166,255,.05);border-bottom:1px solid var(--bg3)':'border-bottom:1px solid var(--bg3);opacity:.55';
+      const st=p.new?.status||'';
+      return `<tr style="${rowStyle}">`
+        +`<td style="padding:4px 8px;font-family:monospace;font-size:10px">${p.port_label||p.port_number}</td>`
+        +`<td style="padding:4px 8px;color:var(--text2)">${p.current?.description||'—'}</td>`
+        +`<td style="padding:4px 8px;${p.will_change&&p.new?.description!==p.current?.description?'color:var(--primary);font-weight:600':''}">${p.new?.description||'—'}</td>`
+        +`<td style="padding:4px 8px;font-family:monospace;font-size:10px;${p.will_change&&p.new?.ip!==p.current?.ip?'color:var(--primary)':''}">${p.new?.ip||'—'}</td>`
+        +`<td style="padding:4px 8px;font-family:monospace;font-size:10px;${p.will_change&&p.new?.mac!==p.current?.mac?'color:var(--primary)':''}">${p.new?.mac||'—'}</td>`
+        +`<td style="padding:4px 8px;color:${statusColor[st]||'var(--text2)'}">${statusLabel[st]||st}</td>`
+        +`<td style="padding:4px 8px">${p.will_change?'<span style="color:var(--primary)">↑</span>':'<span style="color:var(--text3)">=</span>'}</td>`
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+
+  document.getElementById('imp-verify-result').innerHTML=
+    `<div style="margin-top:12px">`
+    +`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;margin-bottom:8px">VERIFICACIÓN — ${v.panel_name} ← ${v.sheet_name}</div>`
+    +warningHtml+summaryHtml+tableHtml
     +'</div>';
-  btn.disabled=false;
 }
 async function impConfirm(){
   const ppId=document.getElementById('imp-panel-sel').value;
@@ -1715,19 +1808,19 @@ async function impConfirm(){
     const data=await res.json();
     document.getElementById('imp-result').innerHTML=
       '<div style="background:#0a2a0a;border:1px solid #1a4a1a;border-radius:var(--radius);padding:12px">'
-      +'<div style="color:var(--green);font-weight:600;margin-bottom:6px">✓ Importación exitosa</div>'
+      +'<div style="color:var(--green);font-weight:600;margin-bottom:6px">✓ Importación completada</div>'
       +'<div style="font-size:12px;color:var(--text2)">'
-      +'Panel: <strong>'+data.panel_name+'</strong> · Hoja: <strong>'+data.sheet_name+'</strong><br>'
-      +'<strong>'+data.ports_updated+'</strong> puertos actualizados'
+      +`Panel: <strong>${data.panel_name}</strong> · Hoja: <strong>${data.sheet_name}</strong><br>`
+      +`<strong>${data.ports_updated}</strong> puertos actualizados`
       +'</div>'
-      +'<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openClientDetail('+data.client_id+',\'\')">Ver cliente →</button>'
+      +`<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openClientDetail(${data.client_id},'')">Ver cliente →</button>`
       +'</div>';
-    toast('Importación exitosa','success');
+    toast('Importación completada','success');
     impReset();
   }catch(e){
-    document.getElementById('imp-result').innerHTML='<div style="color:var(--red);font-size:12px">❌ '+e.message+'</div>';
+    document.getElementById('imp-result').innerHTML=`<div style="color:var(--red);font-size:12px">❌ ${e.message}</div>`;
     toast(e.message,'error');
-  }finally{btn.innerHTML='Confirmar importación';btn.disabled=false;}
+  }finally{btn.innerHTML='⚡ Confirmar importación';btn.disabled=false;}
 }
 function impReset(){
   _impFile=null;
@@ -1736,8 +1829,9 @@ function impReset(){
   document.getElementById('imp-drop-text').textContent='📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar';
   document.getElementById('imp-drop').style.borderColor='var(--border)';
   document.getElementById('imp-step2').style.display='none';
-  document.getElementById('imp-summary').innerHTML='';
-  document.getElementById('imp-confirm-btn').disabled=true;
+  document.getElementById('imp-verify-result').innerHTML='';
+  document.getElementById('imp-confirm-row').style.display='none';
+  document.getElementById('imp-excel-preview').innerHTML='';
 }
 
 // ═══════════════════════════════════════════════════════════ AUDIT
