@@ -50,6 +50,7 @@ from routers import (
     sitios, edificios, cuartos, gabinetes,
     trazabilidad,
     ipam, fibra, credenciales,
+    reportes,
 )
 
 app = FastAPI(
@@ -93,6 +94,7 @@ for r in [
     ipam.router,
     fibra.router,
     credenciales.router,
+    reportes.router,
 ]:
     app.include_router(r, prefix=PREFIX)
 

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>{{ titulo }}</title>
+<link rel="stylesheet" href="estilos.css"></head>
+<body>
+
+{% include 'partials/portada.html' %}
+
+<!-- Resumen ejecutivo -->
+<h1>1. Resumen Ejecutivo</h1>
+<div class="kpi-grid">
+  <div class="kpi-box"><div class="kpi-num">{{ total_sitios }}</div><div class="kpi-lbl">Sitios</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ total_equipos }}</div><div class="kpi-lbl">Equipos</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ licencias | length }}</div><div class="kpi-lbl">Licencias</div></div>
+</div>
+<p>Este informe documenta la infraestructura de red de <strong>{{ cliente_nombre }}</strong> a la fecha de generación.
+Incluye {{ total_sitios }} sitio(s), {{ total_equipos }} equipo(s) activo(s) y la configuración de red completa.</p>
+
+<div class="page-break"></div>
+
+<!-- Por sitio -->
+{% for sitio in sitios %}
+<h1>{{ loop.index + 1 }}. Sitio: {{ sitio.nombre }}</h1>
+<p style="color:#6B7280;font-size:9pt">{{ sitio.direccion }}</p>
+
+{% if sitio.wan %}
+<h2>Conectividad WAN</h2>
+<table>
+  <tr><th>ISP</th><th>Producto</th><th>IP Pública</th><th>Mbps</th></tr>
+  {% for w in sitio.wan %}
+  <tr><td>{{ w.isp }}</td><td>{{ w.producto or '—' }}</td><td><code>{{ w.ip_publica or '—' }}</code></td><td>{{ w.ancho_banda_mbps or '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if sitio.vlans %}
+<h2>VLANs</h2>
+<table>
+  <tr><th>ID</th><th>Nombre</th></tr>
+  {% for v in sitio.vlans %}
+  <tr><td><strong>{{ v.vlan_id }}</strong></td><td>{{ v.nombre }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if sitio.subredes %}
+<h2>Subredes</h2>
+<table>
+  <tr><th>CIDR</th><th>Gateway</th><th>VLAN</th><th>Tipo</th><th>Descripción</th></tr>
+  {% for s in sitio.subredes %}
+  <tr><td><code>{{ s.cidr }}</code></td><td><code>{{ s.gateway or '—' }}</code></td>
+      <td>{{ s.vlan_nombre or '—' }}</td><td>{{ s.tipo or '—' }}</td><td>{{ s.descripcion or '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if sitio.equipos %}
+<h2>Equipos de Red</h2>
+<table>
+  <tr><th>Nombre</th><th>Tipo</th><th>Marca / Modelo</th><th>IP Gestión</th><th>Cuarto</th><th>Estado</th></tr>
+  {% for eq in sitio.equipos %}
+  <tr>
+    <td><strong>{{ eq.nombre }}</strong></td>
+    <td>{{ eq.tipo }}</td>
+    <td>{{ eq.marca or '—' }} {{ eq.modelo or '' }}</td>
+    <td><code>{{ eq.ip_gestion or '—' }}</code></td>
+    <td>{{ eq.cuarto_nombre or '—' }}</td>
+    <td><span class="badge {% if eq.estado == 'activo' %}badge-ok{% elif eq.estado == 'falla' %}badge-danger{% else %}badge-neutral{% endif %}">{{ eq.estado or 'activo' }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if sitio.edificios %}
+<h2>Jerarquía Física</h2>
+{% for edif in sitio.edificios %}
+<h3>Edificio {{ edif.codigo }} — {{ edif.nombre }}</h3>
+<table>
+  <tr><th>Cuarto</th><th>Piso</th><th>Gabinetes</th></tr>
+  {% for c in edif.cuartos %}
+  <tr>
+    <td>{{ c.codigo }} · {{ c.nombre }}</td>
+    <td>{{ c.piso }}</td>
+    <td>{{ c.gabinetes | map(attribute='nombre') | join(', ') or '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+{% endif %}
+
+{% if not loop.last %}<div class="page-break"></div>{% endif %}
+{% endfor %}
+
+{% if licencias %}
+<div class="page-break"></div>
+<h1>Anexo A — Licencias</h1>
+<table>
+  <tr><th>Producto</th><th>Tipo</th><th>Proveedor</th><th>Vencimiento</th><th>Estado</th><th>Activaciones</th></tr>
+  {% for l in licencias %}
+  <tr>
+    <td><strong>{{ l.producto }}</strong></td><td>{{ l.tipo or '—' }}</td><td>{{ l.proveedor or '—' }}</td>
+    <td>{{ l.fecha_vencimiento or '—' }}</td>
+    <td><span class="badge {% if l.estado == 'vigente' %}badge-ok{% elif l.estado == 'vencida' %}badge-danger{% else %}badge-warn{% endif %}">{{ l.estado }}</span></td>
+    <td>{{ l.activaciones_usadas or 0 }} / {{ l.activaciones_max or '∞' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if credenciales %}
+<div class="page-break"></div>
+<h1>Anexo B — Credenciales (redactadas)</h1>
+<table>
+  <tr><th>Servicio</th><th>Usuario</th><th>URL</th></tr>
+  {% for c in credenciales %}
+  <tr><td>{{ c.servicio }}</td><td>{{ c.usuario or '—' }}</td><td>{{ c.url or '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% include 'partials/firma.html' %}
+</body></html>

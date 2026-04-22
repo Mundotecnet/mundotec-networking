@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>{{ titulo }}</title>
+<link rel="stylesheet" href="estilos.css"></head>
+<body>
+
+{% include 'partials/portada.html' %}
+
+<h1>Trazabilidad de Endpoints</h1>
+<p>Este informe documenta la traza hop-by-hop de los endpoints de <strong>{{ cliente_nombre }}</strong>.</p>
+
+{% for ep in endpoints %}
+<div class="avoid-break" style="margin-top:20px">
+<h2>{{ ep.nombre }}</h2>
+<div class="kpi-grid" style="margin-bottom:10px">
+  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.tipo }}</div><div class="kpi-lbl">Tipo</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.ip or '—' }}</div><div class="kpi-lbl">IP</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.sitio_nombre or '—' }}</div><div class="kpi-lbl">Sitio</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">
+    <span class="badge {% if ep.estado_global == 'verde' %}badge-ok{% elif ep.estado_global == 'rojo' %}badge-danger{% else %}badge-warn{% endif %}">
+      {{ ep.estado_global | upper }}
+    </span>
+  </div><div class="kpi-lbl">Estado</div></div>
+</div>
+
+{% if ep.hops %}
+<h3>Traza hop-by-hop</h3>
+{% for h in ep.hops %}
+{% if h.tipo in ['cable', 'jumper', 'empalme_fibra'] %}
+<div class="hop-connector">↕ {{ h.label }} {{ h.detalle or '' }}</div>
+{% else %}
+<div class="hop-row">
+  <div class="hop-dot {{ h.estado or 'verde' }}"></div>
+  <div>
+    <span class="hop-label">{{ h.label }}</span>
+    <span class="hop-tipo">[{{ h.tipo }}]</span>
+    {% if h.detalle %}<div class="hop-detalle">{{ h.detalle }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% else %}
+<div class="alerta alerta-media">Sin traza documentada para este endpoint.</div>
+{% endif %}
+<p style="font-size:8pt;color:#6B7280;margin-top:6px">{{ ep.resumen or '' }}</p>
+</div>
+{% if not loop.last %}<div class="page-break"></div>{% endif %}
+{% endfor %}
+
+{% include 'partials/firma.html' %}
+</body></html>

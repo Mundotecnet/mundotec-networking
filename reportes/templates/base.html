@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ titulo }} — {{ cliente_nombre | default('') }}</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+{% include 'partials/portada.html' %}
+
+<!-- Tabla de contenidos -->
+{% if secciones %}
+<h1>Contenido</h1>
+<div class="toc">
+  {% for s in secciones %}
+  <div class="toc-item"><span><span class="toc-num">{{ loop.index }}.</span>{{ s }}</span></div>
+  {% endfor %}
+</div>
+<div class="page-break"></div>
+{% endif %}
+
+<!-- Contenido principal -->
+{% block contenido %}{% endblock %}
+
+{% include 'partials/firma.html' %}
+</body>
+</html>

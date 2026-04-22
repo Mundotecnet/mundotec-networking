@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>{{ titulo }}</title>
+<link rel="stylesheet" href="estilos.css"></head>
+<body>
+{% include 'partials/portada.html' %}
+
+<h1>Informe Ejecutivo Mensual</h1>
+<p style="font-size:11pt">Resumen de operaciones de infraestructura de red — <strong>{{ cliente_nombre }}</strong></p>
+
+<div class="kpi-grid">
+  <div class="kpi-box"><div class="kpi-num">{{ total_sitios | default(0) }}</div><div class="kpi-lbl">Sitios activos</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ total_equipos | default(0) }}</div><div class="kpi-lbl">Equipos</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ licencias_por_vencer | default(0) }}</div><div class="kpi-lbl">Lic. por vencer</div></div>
+</div>
+
+<h2>Estado de la Infraestructura</h2>
+<p>La red de <strong>{{ cliente_nombre }}</strong> opera con {{ total_equipos | default(0) }} equipos distribuidos
+en {{ total_sitios | default(0) }} sitio(s). Se detectaron {{ alertas | default([]) | length }} alertas activas.</p>
+
+{% if alertas %}
+<h2>Alertas Activas</h2>
+{% for a in alertas %}
+<div class="alerta alerta-{{ a.severidad | default('media') }}"><strong>{{ a.titulo }}</strong> — {{ a.descripcion }}</div>
+{% endfor %}
+{% endif %}
+
+<h2>Acciones Recomendadas</h2>
+{% if recomendaciones %}
+<ol style="font-size:10pt;padding-left:18px">
+{% for r in recomendaciones %}
+<li style="margin-bottom:6px">{{ r.descripcion }}</li>
+{% endfor %}
+</ol>
+{% else %}
+<p style="color:#6B7280">Sin acciones urgentes para este período.</p>
+{% endif %}
+
+{% include 'partials/firma.html' %}
+</body></html>

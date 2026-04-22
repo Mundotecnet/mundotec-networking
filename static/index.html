@@ -264,6 +264,7 @@ tr:hover td{background:rgba(88,166,255,.03)}
       <div class="nav-item" data-page="ipam" onclick="nav('ipam',this)">🌐 IPAM</div>
       <div class="nav-item" data-page="fibra" onclick="nav('fibra',this)">💡 Fibra Óptica</div>
       <div class="nav-item" data-page="credenciales" onclick="nav('credenciales',this)">🔑 Credenciales</div>
+      <div class="nav-item" data-page="reportes" onclick="nav('reportes',this)">📄 Reportes</div>
       <div class="nav-item" data-page="search" onclick="nav('search',this)">🔍 Búsqueda</div>
       <div class="nav-item" data-page="import" onclick="nav('import',this)">📥 Importar Excel</div>
     </div>
@@ -607,6 +608,62 @@ tr:hover td{background:rgba(88,166,255,.03)}
       </div>
     </div>
 
+    <!-- ── REPORTES ── -->
+    <div class="page" id="p-reportes">
+      <div class="ph">
+        <div class="ph-left"><h1>Reportes</h1><p>Genera informes PDF · XLSX para tus clientes</p></div>
+        <div class="ph-right">
+          <button class="btn btn-sm" onclick="reportesLoad()">↺ Historial</button>
+        </div>
+      </div>
+
+      <!-- Generador -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" style="padding:16px">
+          <h3 style="margin-bottom:12px;color:var(--primary)">Generar nuevo informe</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Tipo de informe</label>
+              <select id="rpt-tipo" class="form-control" style="width:100%">
+                <option value="infraestructura">📋 Infraestructura Actual (PDF)</option>
+                <option value="trazabilidad">🔗 Trazabilidad Endpoints (PDF)</option>
+                <option value="mantenimiento">🔧 Mantenimiento Preventivo (PDF)</option>
+                <option value="ejecutivo">📊 Informe Ejecutivo (PDF)</option>
+                <option value="inventario">📦 Inventario Activo (XLSX)</option>
+                <option value="postmortem">🚨 Post-Mortem Incidente (PDF)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Cliente</label>
+              <select id="rpt-cliente" class="form-control" style="width:100%">
+                <option value="">Cargando...</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Formato</label>
+              <select id="rpt-formato" class="form-control" style="width:100%">
+                <option value="">Auto (según tipo)</option>
+                <option value="pdf">PDF</option>
+                <option value="xlsx">XLSX</option>
+              </select>
+            </div>
+            <button class="btn" onclick="reportesGenerar()" style="height:38px">⚡ Generar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historial -->
+      <div class="card">
+        <div class="card-head"><h3>Historial de Reportes</h3></div>
+        <div class="card-body" style="padding:0">
+          <table class="table">
+            <thead><tr><th>Tipo</th><th>Cliente</th><th>Formato</th><th>Estado</th><th>Generado</th><th>Usuario</th><th></th></tr></thead>
+            <tbody id="reportes-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ── PROJECTS ── -->
     <div class="page" id="p-projects">
       <div class="ph"><div class="ph-left"><h1>Proyectos</h1></div></div>
@@ -780,6 +837,7 @@ function nav(page, el=null){
     ipam:()=>{ ipamLoadClientes(); ipamTab('vlans'); },
     fibra:()=>{ fibraTab('odfs'); },
     credenciales:()=>{ credLoadClientes(); credTab('creds'); },
+    reportes:()=>{ reportesInitClientes(); reportesLoad(); },
     search:()=>{document.getElementById('search-q').focus();},
   };
   loaders[page]?.();
@@ -2293,6 +2351,63 @@ function credNuevaLicencia(){
 
 function credNuevoTenant(){
   toast('Use /api/credenciales/tenants via API — UI en desarrollo','info');
+}
+
+// ══ REPORTES ══════════════════════════════════════════════════════════════════
+async function reportesInitClientes(){
+  const sel = document.getElementById('rpt-cliente');
+  if(!sel || sel.options.length > 1) return;
+  const cl = await api('GET','/api/clients').catch(()=>[]) || [];
+  sel.innerHTML = cl.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+async function reportesLoad(){
+  const rows = await api('GET','/api/reportes').catch(()=>[]) || [];
+  const estadoIcon = {procesando:'⏳',listo:'✅',error:'❌'};
+  const tipoLabel = {infraestructura:'Infraestructura',trazabilidad:'Trazabilidad',
+    mantenimiento:'Mantenimiento',ejecutivo:'Ejecutivo',inventario:'Inventario',postmortem:'Post-Mortem'};
+  document.getElementById('reportes-body').innerHTML = rows.map(r=>`
+    <tr>
+      <td>${tipoLabel[r.tipo]||r.tipo}</td>
+      <td>${r.cliente_nombre||'—'}</td>
+      <td><span style="text-transform:uppercase;font-size:10px;font-weight:600">${r.formato}</span></td>
+      <td>${estadoIcon[r.estado]||'?'} ${r.estado}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.creado_en?new Date(r.creado_en).toLocaleString('es-CR'):'—'}</td>
+      <td style="font-size:11px">${r.usuario||'—'}</td>
+      <td>
+        ${r.estado==='listo'?`<a href="/api/reportes/${r.id}/download?token=${token}" target="_blank" class="btn btn-sm">⬇ Descargar</a>`:''}
+        ${r.estado==='error'?`<span title="${r.error||''}" style="font-size:10px;color:var(--danger);cursor:help">⚠ ver error</span>`:''}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3)">Sin reportes generados</td></tr>';
+}
+
+async function reportesGenerar(){
+  const tipo = document.getElementById('rpt-tipo').value;
+  const cliente_id = +document.getElementById('rpt-cliente').value;
+  const fmt = document.getElementById('rpt-formato').value || undefined;
+  if(!cliente_id){ toast('Selecciona un cliente','error'); return; }
+  try{
+    const res = await api('POST','/api/reportes',{tipo, cliente_id, formato: fmt||undefined, params:{}});
+    if(!res){ toast('Error al solicitar reporte','error'); return; }
+    toast(`Reporte "${tipo}" en proceso... (id: ${res.reporte_id.substring(0,8)})`, 'success');
+    setTimeout(()=>{ reportesLoad(); reportesPoll(res.reporte_id); }, 800);
+  }catch(e){ toast(e.message,'error'); }
+}
+
+async function reportesPoll(id, intentos=0){
+  if(intentos > 20) return;
+  const r = await api('GET',`/api/reportes/${id}`).catch(()=>null);
+  if(!r) return;
+  if(r.estado === 'listo'){
+    toast('Reporte listo — haz clic en Descargar','success');
+    reportesLoad();
+  } else if(r.estado === 'error'){
+    toast(`Error generando reporte: ${r.error||'desconocido'}`, 'error');
+    reportesLoad();
+  } else {
+    setTimeout(()=>reportesPoll(id, intentos+1), 2000);
+  }
 }
 </script>
 </body>

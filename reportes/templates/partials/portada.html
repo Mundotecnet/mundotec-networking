@@ -1,0 +1,15 @@
+<div class="portada">
+  {% if borrador %}<div class="portada-watermark">BORRADOR</div>{% endif %}
+  <div class="portada-logo">Mundo<span>Tec</span></div>
+  <div class="portada-tagline">{{ branding.tagline }}</div>
+  <div class="portada-divider"></div>
+  <div class="portada-titulo">{{ titulo }}</div>
+  <div class="portada-subtitulo">{{ subtitulo | default('') }}</div>
+  <div class="portada-meta">
+    <strong>{{ cliente_nombre | default('Cliente') }}</strong>
+    {{ cliente_direccion | default('') }}<br>
+    Generado el {{ generado_en }}<br>
+    Referencia: <code style="font-size:8pt;color:rgba(255,255,255,0.6)">{{ reporte_id[:8] }}</code>
+  </div>
+</div>
+<div class="page-break"></div>

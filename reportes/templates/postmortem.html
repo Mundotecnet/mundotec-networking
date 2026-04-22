@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>{{ titulo }}</title>
+<link rel="stylesheet" href="estilos.css"></head>
+<body>
+{% include 'partials/portada.html' %}
+
+<h1>Post-Mortem de Incidente</h1>
+<div class="card">
+  <div class="card-header">Resumen del Incidente</div>
+  <table>
+    <tr><td><strong>Incidente:</strong></td><td>{{ incidente_titulo | default('—') }}</td></tr>
+    <tr><td><strong>Inicio:</strong></td><td>{{ inicio | default('—') }}</td></tr>
+    <tr><td><strong>Duración:</strong></td><td>{{ duracion | default('—') }}</td></tr>
+    <tr><td><strong>Impacto:</strong></td><td>{{ impacto | default('—') }}</td></tr>
+    <tr><td><strong>Severidad:</strong></td><td>{{ severidad | default('—') }}</td></tr>
+  </table>
+</div>
+
+<h2>Causa Raíz (RCA)</h2>
+<p>{{ rca | default('Por determinar.') }}</p>
+
+<h2>Remediación Aplicada</h2>
+<p>{{ remediacion | default('Por documentar.') }}</p>
+
+<h2>Acciones Correctivas</h2>
+<p>{{ accion_correctiva | default('Por definir.') }}</p>
+
+{% if timeline %}
+<h2>Timeline</h2>
+<table>
+  <tr><th>Hora</th><th>Evento</th><th>Responsable</th></tr>
+  {% for t in timeline %}
+  <tr><td><code>{{ t.hora }}</code></td><td>{{ t.evento }}</td><td>{{ t.responsable or '—' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% include 'partials/firma.html' %}
+</body></html>

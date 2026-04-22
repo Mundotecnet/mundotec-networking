@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>{{ titulo }}</title>
+<link rel="stylesheet" href="estilos.css"></head>
+<body>
+
+{% include 'partials/portada.html' %}
+
+<h1>Informe de Mantenimiento Preventivo</h1>
+<p>Resumen de estado y recomendaciones para <strong>{{ cliente_nombre }}</strong>.</p>
+
+<div class="kpi-grid">
+  <div class="kpi-box"><div class="kpi-num">{{ total_equipos }}</div><div class="kpi-lbl">Equipos</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ licencias_por_vencer | length }}</div><div class="kpi-lbl">Licencias por vencer</div></div>
+  <div class="kpi-box"><div class="kpi-num">{{ recomendaciones | length }}</div><div class="kpi-lbl">Recomendaciones</div></div>
+</div>
+
+{% if licencias_por_vencer %}
+<h2>Licencias por Vencer (próximos 90 días)</h2>
+<table>
+  <tr><th>Producto</th><th>Proveedor</th><th>Vencimiento</th><th>Días restantes</th></tr>
+  {% for l in licencias_por_vencer %}
+  <tr>
+    <td><strong>{{ l.producto }}</strong></td><td>{{ l.proveedor or '—' }}</td>
+    <td>{{ l.fecha_vencimiento }}</td>
+    <td><span class="badge {% if l.dias_restantes and l.dias_restantes < 30 %}badge-danger{% else %}badge-warn{% endif %}">{{ l.dias_restantes or '—' }} días</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if recomendaciones %}
+<h2>Recomendaciones Priorizadas</h2>
+{% for r in recomendaciones %}
+<div class="alerta alerta-{{ r.severidad }}">
+  <strong>[{{ r.severidad | upper }}]</strong> {{ r.descripcion }}
+  {% if r.costo_estimado and r.costo_estimado != '—' %}<em> — Costo estimado: {{ r.costo_estimado }}</em>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<h2>Inventario de Equipos</h2>
+<table>
+  <tr><th>Nombre</th><th>Tipo</th><th>Marca/Modelo</th><th>IP</th><th>Sitio</th><th>Estado</th></tr>
+  {% for eq in equipos %}
+  <tr>
+    <td>{{ eq.nombre }}</td><td>{{ eq.tipo }}</td>
+    <td>{{ eq.marca or '' }} {{ eq.modelo or '' }}</td>
+    <td><code>{{ eq.ip_gestion or '—' }}</code></td>
+    <td>{{ eq.sitio_nombre or '—' }}</td>
+    <td><span class="badge {% if eq.estado == 'activo' %}badge-ok{% else %}badge-neutral{% endif %}">{{ eq.estado }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% include 'partials/firma.html' %}
+</body></html>
