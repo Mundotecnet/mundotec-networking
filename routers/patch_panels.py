@@ -12,18 +12,26 @@ from services.completeness import evaluate_port, pp_score
 
 router = APIRouter()
 
-LABEL_SIMPLE = re.compile(r"^[0-9][A-Z]-[A-Z][0-9]{2}$")
-LABEL_FULL   = re.compile(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$")
+LABEL_SIMPLE   = re.compile(r"^[0-9][A-Z]-[A-Z][0-9]{2}$")
+LABEL_FULL     = re.compile(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$")
+LABEL_EXTENDED = re.compile(r"^[0-9]-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[0-9]{2}$")
 
 
 def _generate_label(pp: models.PatchPanel, number: int) -> str:
     n = f"{number:02d}"
+    if pp.format == "extended":
+        return (
+            f"{pp.floor}-{pp.building or 'A'}-{pp.room_letter}-"
+            f"{pp.rack_id or 'A'}-{pp.panel_letter}-{n}"
+        )
     if pp.format == "full":
         return f"{pp.floor}{pp.room_letter}-{pp.building or 'A'}-{pp.panel_letter}{n}"
     return f"{pp.floor}{pp.room_letter}-{pp.panel_letter}{n}"
 
 
 def _validate_label(label: str, fmt: str) -> bool:
+    if fmt == "extended":
+        return bool(LABEL_EXTENDED.match(label))
     if fmt == "full":
         return bool(LABEL_FULL.match(label))
     return bool(LABEL_SIMPLE.match(label))
@@ -31,24 +39,24 @@ def _validate_label(label: str, fmt: str) -> bool:
 
 class PPCreate(BaseModel):
     name: str
-    brand: Optional[str] = None
-    model: Optional[str] = None
+    cabinet_id: Optional[int] = None
     floor: int = 1
     building: Optional[str] = None
     room_letter: str = "A"
     panel_letter: str = "A"
+    rack_id: Optional[str] = None
     format: str = "simple"
     notes: Optional[str] = None
 
 
 class PPUpdate(BaseModel):
     name: Optional[str] = None
-    brand: Optional[str] = None
-    model: Optional[str] = None
+    cabinet_id: Optional[int] = None
     floor: Optional[int] = None
     building: Optional[str] = None
     room_letter: Optional[str] = None
     panel_letter: Optional[str] = None
+    rack_id: Optional[str] = None
     format: Optional[str] = None
     notes: Optional[str] = None
 
@@ -56,13 +64,13 @@ class PPUpdate(BaseModel):
 class PPOut(BaseModel):
     id: int
     room_id: int
+    cabinet_id: Optional[int]
     name: str
-    brand: Optional[str]
-    model: Optional[str]
     floor: int
     building: Optional[str]
     room_letter: str
     panel_letter: str
+    rack_id: Optional[str]
     format: str
     notes: Optional[str]
 
@@ -106,6 +114,17 @@ def create_panel(
     room = db.query(models.Room).filter(models.Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Cuarto no encontrado")
+    dup_q = db.query(models.PatchPanel).filter(
+        models.PatchPanel.panel_letter == payload.panel_letter.upper()
+    )
+    if payload.cabinet_id:
+        dup_q = dup_q.filter(models.PatchPanel.cabinet_id == payload.cabinet_id)
+    else:
+        dup_q = dup_q.filter(models.PatchPanel.room_id == room_id,
+                              models.PatchPanel.cabinet_id.is_(None))
+    if dup_q.first():
+        raise HTTPException(status_code=409,
+            detail=f"Letra de panel '{payload.panel_letter.upper()}' ya existe en este gabinete/rack")
     pp = models.PatchPanel(room_id=room_id, **payload.model_dump())
     db.add(pp)
     db.flush()
@@ -147,7 +166,24 @@ def update_panel(
     pp = db.query(models.PatchPanel).filter(models.PatchPanel.id == pp_id).first()
     if not pp:
         raise HTTPException(status_code=404, detail="Patch panel no encontrado")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "panel_letter" in updates:
+        new_letter = updates["panel_letter"].upper()
+        updates["panel_letter"] = new_letter
+        cab_id = updates.get("cabinet_id", pp.cabinet_id)
+        dup_q = db.query(models.PatchPanel).filter(
+            models.PatchPanel.panel_letter == new_letter,
+            models.PatchPanel.id != pp_id
+        )
+        if cab_id:
+            dup_q = dup_q.filter(models.PatchPanel.cabinet_id == cab_id)
+        else:
+            dup_q = dup_q.filter(models.PatchPanel.room_id == pp.room_id,
+                                  models.PatchPanel.cabinet_id.is_(None))
+        if dup_q.first():
+            raise HTTPException(status_code=409,
+                detail=f"Letra de panel '{new_letter}' ya existe en este gabinete/rack")
+    for k, v in updates.items():
         setattr(pp, k, v)
     db.commit()
     db.refresh(pp)

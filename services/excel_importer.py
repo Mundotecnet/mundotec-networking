@@ -65,13 +65,37 @@ def _detected_to_endpoint_tipo(detected: str) -> str:
 
 
 def _detect_format(label: str) -> str:
+    if re.match(r"^[0-9]-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[0-9]{2}$", label):
+        return "extended"
     if re.match(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$", label):
         return "full"
     return "simple"
 
 
+def _parse_label_meta(label: str, fmt: str) -> dict:
+    """Extract floor, building, room_letter, rack_id, panel_letter from label."""
+    if fmt == "extended":
+        m = re.match(r"^([0-9])-([A-Z0-9]+)-([A-Z0-9]+)-([A-Z0-9]+)-([A-Z0-9]+)-[0-9]{2}$", label)
+        if m:
+            return {"floor": int(m[1]), "building": m[2], "room_letter": m[3],
+                    "rack_id": m[4], "panel_letter": m[5]}
+    if fmt == "full":
+        m = re.match(r"^([0-9])([A-Z])-([A-Z])-([A-Z])[0-9]{2}$", label)
+        if m:
+            return {"floor": int(m[1]), "room_letter": m[2], "building": m[3],
+                    "panel_letter": m[4], "rack_id": None}
+    m = re.match(r"^([0-9])([A-Z])-([A-Z])[0-9]{2}$", label)
+    if m:
+        return {"floor": int(m[1]), "room_letter": m[2], "panel_letter": m[3],
+                "building": None, "rack_id": None}
+    return {"floor": 1, "room_letter": "A", "building": None, "rack_id": None, "panel_letter": "A"}
+
+
 def _generate_label(pp: models.PatchPanel, port_number: int) -> str:
     num_str = f"{port_number:02d}"
+    if pp.format == "extended":
+        return (f"{pp.floor}-{pp.building or 'A'}-{pp.room_letter}-"
+                f"{pp.rack_id or 'A'}-{pp.panel_letter}-{num_str}")
     if pp.format == "full":
         return f"{pp.floor}{pp.room_letter}-{pp.building or 'A'}-{pp.panel_letter}{num_str}"
     return f"{pp.floor}{pp.room_letter}-{pp.panel_letter}{num_str}"
@@ -192,6 +216,155 @@ def _create_endpoint_v2(db: Session, client_id: int, sitio_id: str,
     return eid
 
 
+# ── Port row parser (shared) ──────────────────────────────────────────────────
+
+def _parse_sheet_ports(ws) -> tuple[list[dict], str, str]:
+    """Return (port_data, label_format, first_label). port_data is list of dicts."""
+    header_row_idx = None
+    for row in ws.iter_rows(min_row=1, max_row=15):
+        for cell in row:
+            v = str(cell.value).strip().upper() if cell.value else ""
+            if v in ("PUERTO", "PP") or "PUERTO" in v:
+                header_row_idx = cell.row
+                break
+        if header_row_idx:
+            break
+    if not header_row_idx:
+        return [], "simple", ""
+
+    headers = [str(c.value).strip().upper() if c.value else "" for c in ws[header_row_idx]]
+    col_puerto = next((i for i, h in enumerate(headers) if h in ("PUERTO", "PP") or "PUERTO" in h), None)
+    col_detalle = next((i for i, h in enumerate(headers) if "DETALLE" in h), None)
+    col_mac    = next((i for i, h in enumerate(headers) if "MAC" in h), None)
+    col_sw     = next((i for i, h in enumerate(headers) if "SWITCH" in h or "SW" in h), None)
+
+    port_data: list[dict] = []
+    for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+        if all(c is None for c in row):
+            continue
+        entry: dict = {}
+        if col_puerto is not None and col_puerto < len(row):
+            entry["port_label"] = str(row[col_puerto] or "").strip()
+        if col_detalle is not None and col_detalle < len(row):
+            entry["detail"] = str(row[col_detalle] or "").strip()
+        if col_mac is not None and col_mac < len(row):
+            raw_mac = str(row[col_mac] or "").strip()
+            mac, ip = _clean_mac(raw_mac)
+            entry["mac"] = mac
+            entry["ip_from_mac"] = ip
+        else:
+            entry["mac"] = ""
+            entry["ip_from_mac"] = None
+        if col_sw is not None and col_sw < len(row):
+            entry["sw_port"] = _clean_sw_port(str(row[col_sw] or ""))
+        if entry.get("port_label") or entry.get("detail"):
+            port_data.append(entry)
+
+    first_label = next((e["port_label"] for e in port_data if e.get("port_label")), "")
+    label_format = _detect_format(first_label) if first_label else "simple"
+    return port_data, label_format, first_label
+
+
+# ── Preview (no DB) ────────────────────────────────────────────────────────────
+
+def preview_excel(file_content: bytes) -> dict:
+    wb = openpyxl.load_workbook(BytesIO(file_content), data_only=True)
+    sheets = []
+    for idx, sheet_name in enumerate(wb.sheetnames):
+        ws = wb[sheet_name]
+        port_data, label_format, first_label = _parse_sheet_ports(ws)
+        if not port_data:
+            sheets.append({"index": idx, "name": sheet_name,
+                            "label_format": None, "port_count": 0,
+                            "ports": [], "error": "No se encontró columna PUERTO/PP o no hay datos"})
+            continue
+        preview_ports = []
+        for i, e in enumerate(port_data[:24]):
+            preview_ports.append({
+                "number": i + 1,
+                "label": e.get("port_label", ""),
+                "detail": e.get("detail", ""),
+                "mac": e.get("mac", "") or "",
+                "ip": e.get("ip_from_mac", "") or "",
+            })
+        sheets.append({
+            "index": idx,
+            "name": sheet_name,
+            "label_format": label_format,
+            "first_label": first_label,
+            "port_count": len(port_data),
+            "ports": preview_ports,
+        })
+    return {"sheets": sheets}
+
+
+# ── Import into existing panel ─────────────────────────────────────────────────
+
+def import_into_panel(
+    db: Session,
+    file_content: bytes,
+    patch_panel_id: int,
+    sheet_index: int = 0,
+    current_user=None,
+) -> dict:
+    pp = db.query(models.PatchPanel).filter(models.PatchPanel.id == patch_panel_id).first()
+    if not pp:
+        raise ValueError("Patch panel no encontrado")
+
+    wb = openpyxl.load_workbook(BytesIO(file_content), data_only=True)
+    if sheet_index >= len(wb.sheetnames):
+        raise ValueError("Índice de hoja fuera de rango")
+
+    sheet_name = wb.sheetnames[sheet_index]
+    ws = wb[sheet_name]
+    port_data, _, _ = _parse_sheet_ports(ws)
+    if not port_data:
+        raise ValueError(f"Hoja '{sheet_name}': no se encontraron datos de puertos")
+
+    ports_updated = 0
+    for port in pp.ports:
+        idx = port.number - 1
+        if idx >= len(port_data):
+            continue
+        e = port_data[idx]
+        detail = e.get("detail", "")
+        detected = _detect_type(detail)
+
+        if e.get("port_label"):
+            port.label = e["port_label"]
+
+        if detected == "libre":
+            port.node_type = "libre"
+            port.completeness_status = "libre"
+            port.node_description = None
+            port.node_mac = None
+            port.node_ip = None
+        elif detected == "prevista":
+            port.node_type = "prevista"
+            port.completeness_status = "prevista"
+            port.node_description = None
+        else:
+            if detail:
+                port.node_type = "descripcion"
+                port.node_description = detail
+            port.node_mac = e.get("mac") or None
+            port.node_ip = e.get("ip_from_mac") or None
+            port.completeness_status = "sin_revisar"
+
+        ports_updated += 1
+
+    db.commit()
+    return {
+        "panel_id": pp.id,
+        "panel_name": pp.name,
+        "room_id": pp.room_id,
+        "client_id": pp.room.client_id,
+        "cabinet_id": pp.cabinet_id,
+        "sheet_name": sheet_name,
+        "ports_updated": ports_updated,
+    }
+
+
 # ── Main importer ──────────────────────────────────────────────────────────────
 
 def import_excel(
@@ -247,11 +420,12 @@ def import_excel(
         gabinete_id = _create_gabinete(db, cuarto_id)
         cuarto_letra += 1
 
-        # Detect headers row (find row containing "PUERTO")
+        # Detect headers row (find row containing "PUERTO" or "PP")
         header_row_idx = None
         for row in ws.iter_rows(min_row=1, max_row=15):
             for cell in row:
-                if cell.value and "PUERTO" in str(cell.value).upper():
+                v = str(cell.value).strip().upper() if cell.value else ""
+                if v in ("PUERTO", "PP") or "PUERTO" in v:
                     header_row_idx = cell.row
                     break
             if header_row_idx:
@@ -262,13 +436,13 @@ def import_excel(
             continue
 
         headers = [str(c.value).strip().upper() if c.value else "" for c in ws[header_row_idx]]
-        col_puerto = next((i for i, h in enumerate(headers) if "PUERTO" in h), None)
+        col_puerto = next((i for i, h in enumerate(headers) if h in ("PUERTO", "PP") or "PUERTO" in h), None)
         col_detalle = next((i for i, h in enumerate(headers) if "DETALLE" in h), None)
         col_mac = next((i for i, h in enumerate(headers) if "MAC" in h), None)
         col_sw = next((i for i, h in enumerate(headers) if "SWITCH" in h or "SW" in h), None)
 
         if col_puerto is None:
-            warnings.append(f"Hoja '{sheet_name}': columna PUERTO no encontrada")
+            warnings.append(f"Hoja '{sheet_name}': columna PUERTO/PP no encontrada")
             continue
 
         # Group ports into patches of 24
@@ -300,21 +474,17 @@ def import_excel(
 
         # Determine label format from first labeled port
         label_format = "simple"
-        for e in port_data:
-            lbl = e.get("port_label", "")
-            if lbl and re.match(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$", lbl):
-                label_format = "full"
-                break
+        first_label = next((e["port_label"] for e in port_data if e.get("port_label")), "")
+        if first_label:
+            label_format = _detect_format(first_label)
 
         # Parse PP info from first label
-        first_label = next((e["port_label"] for e in port_data if e.get("port_label")), "")
-        floor, room_letter, building, panel_letter = 1, "A", None, "A"
-        if label_format == "full" and re.match(r"^([0-9])([A-Z])-([A-Z])-([A-Z])", first_label):
-            m = re.match(r"^([0-9])([A-Z])-([A-Z])-([A-Z])", first_label)
-            floor, room_letter, building, panel_letter = int(m[1]), m[2], m[3], m[4]
-        elif re.match(r"^([0-9])([A-Z])-([A-Z])", first_label):
-            m = re.match(r"^([0-9])([A-Z])-([A-Z])", first_label)
-            floor, room_letter, panel_letter = int(m[1]), m[2], m[3]
+        meta_pp = _parse_label_meta(first_label, label_format)
+        floor = meta_pp["floor"]
+        room_letter = meta_pp["room_letter"]
+        building = meta_pp["building"]
+        panel_letter = meta_pp["panel_letter"]
+        rack_id = meta_pp.get("rack_id")
 
         # Create patch panel (legacy)
         pp = models.PatchPanel(
@@ -324,6 +494,7 @@ def import_excel(
             building=building,
             room_letter=room_letter,
             panel_letter=panel_letter,
+            rack_id=rack_id,
             format=label_format,
         )
         db.add(pp)

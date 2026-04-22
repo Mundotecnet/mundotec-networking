@@ -50,6 +50,7 @@ class Client(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     rooms = relationship("Room", back_populates="client", cascade="all, delete-orphan", lazy="select")
+    buildings = relationship("Building", back_populates="client", cascade="all, delete-orphan", lazy="select")
     audit_logs = relationship(
         "AuditLog", back_populates="client",
         foreign_keys="AuditLog.client_id", lazy="select"
@@ -57,11 +58,28 @@ class Client(Base):
     projects = relationship("Project", back_populates="client", lazy="select")
 
 
+class Building(Base):
+    __tablename__ = "buildings"
+
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    letter = Column(String(1), nullable=False)
+    address = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    client = relationship("Client", back_populates="buildings")
+    rooms = relationship("Room", back_populates="building", cascade="all, delete-orphan", lazy="select")
+
+
 class Room(Base):
     __tablename__ = "rooms"
 
     id = Column(Integer, primary_key=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    building_id = Column(Integer, ForeignKey("buildings.id", ondelete="CASCADE"), nullable=True)
+    letter = Column(String(1), nullable=True)
     name = Column(String(255), nullable=False)
     location = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
@@ -75,10 +93,29 @@ class Room(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     client = relationship("Client", back_populates="rooms")
+    building = relationship("Building", back_populates="rooms")
     patch_panels = relationship("PatchPanel", back_populates="room", cascade="all, delete-orphan", lazy="select")
     devices = relationship("Device", back_populates="room", cascade="all, delete-orphan", lazy="select")
     vlans = relationship("Vlan", back_populates="room", cascade="all, delete-orphan", lazy="select")
     connections = relationship("Connection", back_populates="room", cascade="all, delete-orphan", lazy="select")
+    cabinets = relationship("Cabinet", back_populates="room", cascade="all, delete-orphan", lazy="select")
+
+
+class Cabinet(Base):
+    __tablename__ = "cabinets"
+
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    letter = Column(String(1), nullable=False)
+    rack_units = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    room = relationship("Room", back_populates="cabinets")
+    patch_panels = relationship("PatchPanel", back_populates="cabinet",
+                                cascade="all, delete-orphan", lazy="select")
+    devices = relationship("Device", back_populates="cabinet", lazy="select")
 
 
 class Vlan(Base):
@@ -103,6 +140,7 @@ class PatchPanel(Base):
 
     id = Column(Integer, primary_key=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    cabinet_id = Column(Integer, ForeignKey("cabinets.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(100), nullable=False)
     brand = Column(String(100), nullable=True)
     model = Column(String(100), nullable=True)
@@ -110,10 +148,12 @@ class PatchPanel(Base):
     building = Column(String(1), nullable=True)
     room_letter = Column(String(1), nullable=False, default="A")
     panel_letter = Column(String(1), nullable=False, default="A")
+    rack_id = Column(String(5), nullable=True)
     format = Column(String(20), default="simple", nullable=False)
     notes = Column(Text, nullable=True)
 
     room = relationship("Room", back_populates="patch_panels")
+    cabinet = relationship("Cabinet", back_populates="patch_panels")
     ports = relationship(
         "PatchPort", back_populates="patch_panel",
         cascade="all, delete-orphan",
@@ -167,21 +207,25 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    cabinet_id = Column(Integer, ForeignKey("cabinets.id", ondelete="SET NULL"), nullable=True)
     category = Column(String(20), nullable=False)
     name = Column(String(255), nullable=False)
     device_type = Column(String(30), nullable=False)
     brand = Column(String(100), nullable=False, default="")
     model = Column(String(100), nullable=False, default="")
+    serial = Column(String(100), nullable=True)
     mac = Column(String(50), nullable=True)
     ip = Column(String(50), nullable=True)
     hostname = Column(String(100), nullable=True)
     admin_port = Column(String(50), nullable=True)
+    port_count = Column(Integer, default=0, nullable=False)
     username_encrypted = Column(Text, nullable=True)
     password_encrypted = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     room = relationship("Room", back_populates="devices")
+    cabinet = relationship("Cabinet", back_populates="devices")
     ports = relationship(
         "DevicePort", back_populates="device",
         cascade="all, delete-orphan",

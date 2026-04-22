@@ -44,7 +44,7 @@ models.Base.metadata.create_all(bind=engine)
 from auth import jwt as auth_jwt
 from auth import google as auth_google
 from routers import (
-    users, clients, rooms, patch_panels, patch_ports,
+    users, clients, rooms, buildings, cabinets, patch_panels, patch_ports,
     devices, device_ports, vlans, connections, backups,
     audit as audit_router, projects,
     sitios, edificios, cuartos, gabinetes,
@@ -76,7 +76,9 @@ for r in [
     auth_google.router,
     users.router,
     clients.router,
+    buildings.router,
     rooms.router,
+    cabinets.router,
     patch_panels.router,
     patch_ports.router,
     devices.router,
@@ -117,7 +119,7 @@ def search(
 
 # ── Excel import endpoint ─────────────────────────────────────────────────────
 from fastapi import UploadFile, File, Form
-from services.excel_importer import import_excel
+from services.excel_importer import import_excel, preview_excel, import_into_panel
 from services import audit as audit_svc
 from auth.jwt import require_editor
 
@@ -136,6 +138,39 @@ async def import_excel_endpoint(
         db, "IMPORT_EXCEL", "client",
         entity_label=client_name,
         notes=f"rooms={result['rooms_created']} ports={result['ports_imported']}",
+        user=current_user, request=request,
+    )
+    return result
+
+
+@app.post("/api/import/preview")
+async def preview_excel_endpoint(
+    file: UploadFile = File(...),
+    _: models.User = Depends(require_editor),
+):
+    content = await file.read()
+    return preview_excel(content)
+
+
+@app.post("/api/import/into-panel/{pp_id}")
+async def import_into_panel_endpoint(
+    pp_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    sheet_index: int = Form(0),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    content = await file.read()
+    try:
+        result = import_into_panel(db, content, pp_id, sheet_index, current_user)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+    audit_svc.log(
+        db, "IMPORT_EXCEL", "patch_panel", entity_id=pp_id,
+        entity_label=result["panel_name"],
+        notes=f"sheet={result['sheet_name']} ports_updated={result['ports_updated']}",
         user=current_user, request=request,
     )
     return result

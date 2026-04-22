@@ -334,17 +334,45 @@ tr:hover td{background:rgba(88,166,255,.03)}
 
     <!-- ── IMPORT ── -->
     <div class="page" id="p-import">
-      <div class="ph"><div class="ph-left"><h1>Importar Excel</h1><p>Cargar datos desde archivo .xlsx</p></div></div>
-      <div class="card" style="max-width:520px">
+      <div class="ph"><div class="ph-left"><h1>Importar Excel</h1><p>Importar puertos a un patch panel existente</p></div></div>
+      <div class="card" style="max-width:600px">
         <div class="card-body">
-          <div class="fgroup"><label>Nombre del cliente</label><input id="imp-client" placeholder="Ej: Empresa XYZ"></div>
-          <div class="fgroup"><label>Archivo Excel (.xlsx)</label>
-            <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s" onclick="document.getElementById('imp-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleDrop(event)">
-              <div id="drop-text">📂 Arrastra el archivo aquí o haz clic para seleccionar</div>
+          <!-- Paso 1: drop zone -->
+          <div class="fgroup">
+            <div id="imp-drop" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;color:var(--text2);transition:border-color .15s"
+              onclick="document.getElementById('imp-file').click()"
+              ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+              ondragleave="this.style.borderColor='var(--border)'"
+              ondrop="impHandleDrop(event)">
+              <div id="imp-drop-text">📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar</div>
             </div>
-            <input id="imp-file" type="file" accept=".xlsx" style="display:none" onchange="handleFileSelect(this)">
+            <input id="imp-file" type="file" accept=".xlsx" style="display:none" onchange="impHandleFile(this)">
           </div>
-          <button class="btn btn-primary" onclick="doImport()" id="imp-btn">Importar</button>
+          <!-- Paso 2: configuración (oculto hasta preview) -->
+          <div id="imp-step2" style="display:none">
+            <hr class="divider">
+            <div class="fgroup">
+              <label>Hoja del Excel</label>
+              <select id="imp-sheet-sel" onchange="impShowPreview()"></select>
+            </div>
+            <div id="imp-preview-table" style="margin-bottom:12px"></div>
+            <div class="form-row">
+              <div class="fgroup"><label>Cliente *</label>
+                <select id="imp-client-sel" onchange="impLoadRooms()"><option value="">— selecciona —</option></select>
+              </div>
+              <div class="fgroup"><label>Cuarto *</label>
+                <select id="imp-room-sel" onchange="impLoadPanels()"><option value="">— selecciona —</option></select>
+              </div>
+            </div>
+            <div class="fgroup"><label>Patch Panel destino *</label>
+              <select id="imp-panel-sel" onchange="impBuildSummary()"><option value="">— selecciona —</option></select>
+            </div>
+            <div id="imp-summary" style="margin-bottom:12px"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="impConfirm()" id="imp-confirm-btn" disabled>Confirmar importación</button>
+              <button class="btn btn-secondary" onclick="impReset()">Cancelar</button>
+            </div>
+          </div>
           <div id="imp-result" style="margin-top:14px"></div>
         </div>
       </div>
@@ -700,7 +728,6 @@ let currentUser = null;
 let currentClientId = null;
 let modalCfg = null;
 let _searchTimer = null;
-let _impFile = null;
 
 // ═══════════════════════════════════════════════════════════ UTILS
 function toast(msg, type='info'){
@@ -1098,15 +1125,60 @@ async function openClientDetail(id, name){
 }
 
 async function loadRoomsDetail(clientId, analytics){
-  const rooms = await api('GET',`/api/clients/${clientId}/rooms`)||[];
+  const [rooms, buildings] = await Promise.all([
+    api('GET',`/api/clients/${clientId}/rooms`),
+    api('GET',`/api/clients/${clientId}/buildings`),
+  ]);
+  const allRooms = rooms||[];
+  const allBuildings = buildings||[];
   const container = document.getElementById('cd-rooms');
   container.innerHTML = '';
-  if(!rooms.length){
+  if(!allRooms.length && !allBuildings.length){
     container.innerHTML='<div class="empty">Sin cuartos. Agrega el primero con "+ Cuarto".</div>';
     return;
   }
+  const roomsByBld = {};
+  allBuildings.forEach(b=>{ roomsByBld[b.id]=[]; });
+  const orphanRooms = [];
+  allRooms.forEach(r=>{
+    if(r.building_id && roomsByBld[r.building_id]) roomsByBld[r.building_id].push(r);
+    else orphanRooms.push(r);
+  });
+  for(const bld of allBuildings){
+    const bldEl = document.createElement('div');
+    bldEl.className='card';
+    bldEl.style.marginBottom='12px';
+    bldEl.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-radius:var(--radius) var(--radius) 0 0">'
+      +'<span style="font-weight:600">🏢 '+bld.letter+' \u2014 '+bld.name+'</span>'
+      +'<div style="display:flex;gap:6px">'
+      +'<button class="btn btn-primary btn-sm" onclick="openModal(\'room\',null,{client_id:'+clientId+',building_id:'+bld.id+'})">+ Cuarto</button>'
+      +'<button class="btn btn-secondary btn-sm" onclick="openModal(\'building\','+bld.id+')">✏️</button>'
+      +'</div></div>'
+      +'<div id="bld-rooms-'+bld.id+'"></div>';
+    container.appendChild(bldEl);
+    renderRoomAccordions(document.getElementById('bld-rooms-'+bld.id), roomsByBld[bld.id]||[], analytics, clientId);
+  }
+  if(orphanRooms.length){
+    const orphanEl = document.createElement('div');
+    orphanEl.className='card';
+    orphanEl.style.marginBottom='12px';
+    orphanEl.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-radius:var(--radius) var(--radius) 0 0">'
+      +'<span style="color:var(--orange)">📋 Sin edificio asignado</span>'
+      +'<button class="btn btn-primary btn-sm" onclick="openModal(\'room\',null,{client_id:'+clientId+'})">+ Cuarto</button>'
+      +'</div>'
+      +'<div id="bld-rooms-orphan"></div>';
+    container.appendChild(orphanEl);
+    renderRoomAccordions(document.getElementById('bld-rooms-orphan'), orphanRooms, analytics, clientId);
+  }
+}
+
+function renderRoomAccordions(container, rooms, analytics, clientId){
   for(const room of rooms){
     const roomAnalytics = analytics.by_room.find(r=>r.room_id===room.id)||{score:0,issues:[]};
+    const safeName = room.name.replace(/'/g,"\\'");
+    const deleteBtn = currentUser&&currentUser.role==='admin'
+      ? '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteRoom('+room.id+',\''+safeName+'\')" title="Eliminar cuarto">🗑</button>'
+      : '';
     const acc = document.createElement('div');
     acc.className='accordion';
     acc.innerHTML=`
@@ -1117,6 +1189,7 @@ async function loadRoomsDetail(clientId, analytics){
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openModal('room',${room.id})">✏️</button>
+          ${deleteBtn}
           <span id="acc-arrow-${room.id}">▼</span>
         </div>
       </div>
@@ -1138,6 +1211,15 @@ async function loadRoomsDetail(clientId, analytics){
     container.appendChild(acc);
     loadRoomTabActivos(room.id);
   }
+}
+
+async function deleteRoom(roomId, roomName){
+  if(!confirm('¿Eliminar cuarto "'+roomName+'" y todos sus datos? Esta acción no se puede deshacer.')) return;
+  try{
+    await api('DELETE',`/api/rooms/${roomId}`);
+    toast('Cuarto eliminado','success');
+    if(currentClientId) openClientDetail(currentClientId,'');
+  }catch(e){ toast(e.message||'Error al eliminar','error'); }
 }
 
 function toggleAcc(head){
@@ -1250,6 +1332,59 @@ function renderVlanTable(vlans, roomId){
   </table></div>`;
 }
 
+const ppViewModes={};
+const ppPortsCache={};
+
+function renderPortsGrid(ports, ppId, roomId){
+  return '<div class="pp-grid">'+ports.sort((a,b)=>a.number-b.number).map(p=>
+    '<div class="pp-port s-'+(p.completeness_status||'sin_revisar')+'" onclick="openModal(\'port\','+p.id+')" title="'+portTooltip(p)+'" oncontextmenu="portContextMenu(event,'+p.id+','+ppId+','+roomId+')">'
+    +'<div class="pp-num">'+p.number+'</div>'
+    +'<div class="pp-lbl">'+(p.label||'')+'</div>'
+    +'<div class="pp-status">'+({completo:'✓',parcial:'!',libre:'—',prevista:'~',sin_revisar:'?'}[p.completeness_status]||'?')+'</div>'
+    +'</div>'
+  ).join('')+'</div>';
+}
+
+function renderPortsList(ports, ppId, roomId){
+  const statusLabel={completo:'✓ Completo',parcial:'! Parcial',libre:'— Libre',prevista:'~ Prevista',sin_revisar:'? Sin revisar'};
+  const statusStyle={completo:'background:#0a2a0a;color:var(--green)',parcial:'background:#1a1400;color:#e3b341',libre:'background:var(--bg3);color:var(--text3)',prevista:'background:#1a0a2a;color:#bc8cff',sin_revisar:'background:var(--bg2);color:var(--text2)'};
+  const rows=ports.sort((a,b)=>a.number-b.number).map(p=>{
+    const st=p.completeness_status||'sin_revisar';
+    return '<tr>'
+      +'<td style="width:36px;text-align:center;color:var(--text3)">'+p.number+'</td>'
+      +'<td style="font-family:monospace;font-size:11px">'+(p.label||'')+'</td>'
+      +'<td><span style="font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;'+(statusStyle[st]||'')+'">'+( statusLabel[st]||st)+'</span></td>'
+      +'<td style="font-size:12px;color:var(--text2)">'+(p.node_description||'')+'</td>'
+      +'<td style="font-size:11px;font-family:monospace">'+(p.node_ip||'')+'</td>'
+      +'<td style="font-size:11px;font-family:monospace">'+(p.node_mac||'')+'</td>'
+      +'<td style="width:32px;text-align:center"><button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:10px" onclick="openModal(\'port\','+p.id+')" oncontextmenu="portContextMenu(event,'+p.id+','+ppId+','+roomId+')">✏️</button></td>'
+      +'</tr>';
+  }).join('');
+  return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border)">'
+    +'<th style="padding:4px 8px;text-align:center">#</th>'
+    +'<th style="padding:4px 8px;text-align:left">Etiqueta</th>'
+    +'<th style="padding:4px 8px;text-align:left">Estado</th>'
+    +'<th style="padding:4px 8px;text-align:left">Descripción</th>'
+    +'<th style="padding:4px 8px;text-align:left">IP</th>'
+    +'<th style="padding:4px 8px;text-align:left">MAC</th>'
+    +'<th></th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>';
+}
+
+function togglePPView(ppId, roomId){
+  ppViewModes[ppId] = ppViewModes[ppId]==='list' ? 'grid' : 'list';
+  const ports = ppPortsCache[ppId]||[];
+  const el = document.getElementById('pp-ports-'+ppId);
+  if(!el) return;
+  const isGrid = ppViewModes[ppId]!=='list';
+  el.innerHTML = isGrid ? renderPortsGrid(ports,ppId,roomId) : renderPortsList(ports,ppId,roomId);
+  const btn = document.getElementById('pp-view-btn-'+ppId);
+  if(btn) btn.textContent = isGrid ? '☰ Lista' : '⊞ Grilla';
+}
+
 async function loadRoomTabPasivos(roomId){
   const el=document.getElementById(`room-tab-pasivos-${roomId}`);
   try{
@@ -1261,26 +1396,25 @@ async function loadRoomTabPasivos(roomId){
     </div>`;
     for(const pp of panels){
       const ports = await api('GET',`/api/patch-panels/${pp.id}/ports`)||[];
+      ppPortsCache[pp.id] = ports;
+      if(ppViewModes[pp.id]===undefined) ppViewModes[pp.id]='grid';
       const sc = calcPPScore(ports, roomHasSwitch);
+      const isGrid = ppViewModes[pp.id]!=='list';
+      const portsHtml = isGrid ? renderPortsGrid(ports,pp.id,roomId) : renderPortsList(ports,pp.id,roomId);
       html+=`<div style="margin-bottom:20px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div>
             <strong>${pp.name}</strong>
-            <span style="color:var(--text2);font-size:11px"> · ${[pp.brand,pp.model].filter(Boolean).join(' ')||''} · Piso ${pp.floor} · ${pp.format}</span>
+            <span style="color:var(--text2);font-size:11px"> · Piso ${pp.floor}${pp.building?' · Edif. '+pp.building:''} · Cuarto ${pp.room_letter} · Panel ${pp.panel_letter} · ${pp.format}</span>
           </div>
           <div class="actions">
+            <button id="pp-view-btn-${pp.id}" class="btn btn-secondary btn-sm" onclick="togglePPView(${pp.id},${roomId})">${isGrid?'☰ Lista':'⊞ Grilla'}</button>
             <button class="btn btn-secondary btn-sm" onclick="openModal('patch_panel',${pp.id})">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="delItem('patch_panel',${pp.id},'${pp.name.replace(/'/g,"\\'")}',()=>loadRoomTabPasivos(${roomId}))">🗑️</button>
           </div>
         </div>
         <div class="pp-stats">✓ ${sc.completos} · ! ${sc.parciales} · ? ${sc.sin_revisar} · — ${sc.libres} · ~ ${sc.previstas} | ${sc.score}%</div>
-        <div class="pp-grid">${ports.sort((a,b)=>a.number-b.number).map(p=>`
-          <div class="pp-port s-${p.completeness_status||'sin_revisar'}" onclick="openModal('port',${p.id})" title="${portTooltip(p)}" oncontextmenu="portContextMenu(event,${p.id},${pp.id},${roomId})">
-            <div class="pp-num">${p.number}</div>
-            <div class="pp-lbl">${p.label||''}</div>
-            <div class="pp-status">${{completo:'✓',parcial:'!',libre:'—',prevista:'~',sin_revisar:'?'}[p.completeness_status]||'?'}</div>
-          </div>
-        `).join('')}</div>
+        <div id="pp-ports-${pp.id}">${portsHtml}</div>
       </div>`;
     }
     if(!panels.length) html='<div class="empty">Sin patch panels. Agrega el primero.</div>';
@@ -1459,47 +1593,151 @@ document.addEventListener('keydown', e=>{
 });
 
 // ═══════════════════════════════════════════════════════════ IMPORT
-function handleDrop(event){
+// ═══════════════════════════════════════════════════════════ IMPORT WIZARD
+let _impFile=null;
+let _impSheets=[];
+
+function impHandleDrop(event){
   event.preventDefault();
-  event.target.closest('#drop-zone').style.borderColor='var(--border)';
-  const file = event.dataTransfer.files[0];
-  if(file) setImpFile(file);
+  document.getElementById('imp-drop').style.borderColor='var(--border)';
+  const file=event.dataTransfer.files[0];
+  if(file) impSetFile(file);
 }
-function handleFileSelect(input){
-  if(input.files[0]) setImpFile(input.files[0]);
+function impHandleFile(input){
+  if(input.files[0]) impSetFile(input.files[0]);
 }
-function setImpFile(file){
+function impSetFile(file){
   _impFile=file;
-  document.getElementById('drop-text').textContent=`📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  document.getElementById('imp-drop-text').textContent='📄 '+file.name+' ('+(file.size/1024).toFixed(1)+' KB)';
+  previewImport();
 }
-async function doImport(){
-  const clientName=document.getElementById('imp-client').value.trim();
-  if(!clientName){toast('Ingresa el nombre del cliente','error');return;}
-  if(!_impFile){toast('Selecciona un archivo Excel','error');return;}
-  const btn=document.getElementById('imp-btn');
+async function previewImport(){
+  if(!_impFile) return;
+  document.getElementById('imp-drop-text').innerHTML='<span class="spinner"></span> Analizando…';
+  try{
+    const fd=new FormData();
+    fd.append('file',_impFile);
+    const res=await fetch(API+'/api/import/preview',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    _impSheets=await res.json();
+    document.getElementById('imp-drop-text').textContent='📄 '+_impFile.name+' — '+_impSheets.length+' hoja(s)';
+    const sheetSel=document.getElementById('imp-sheet-sel');
+    sheetSel.innerHTML=_impSheets.map((s,i)=>'<option value="'+i+'">'+s.sheet_name+' ('+s.port_count+' puertos)</option>').join('');
+    document.getElementById('imp-step2').style.display='block';
+    impShowPreview();
+    const clients=await api('GET','/api/clients')||[];
+    document.getElementById('imp-client-sel').innerHTML='<option value="">— selecciona —</option>'
+      +clients.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
+  }catch(e){
+    document.getElementById('imp-drop-text').textContent='📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar';
+    toast(e.message||'Error al analizar','error');
+  }
+}
+function impShowPreview(){
+  const idx=parseInt(document.getElementById('imp-sheet-sel').value)||0;
+  const sheet=_impSheets[idx];
+  if(!sheet||!sheet.ports) return;
+  const ports=sheet.ports.slice(0,8);
+  let html='<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Vista previa (primeros '+ports.length+' puertos):</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border)">'
+    +'<th style="padding:3px 6px">#</th><th style="padding:3px 6px">Etiqueta</th><th style="padding:3px 6px">Descripción</th><th style="padding:3px 6px">IP</th><th style="padding:3px 6px">MAC</th>'
+    +'</tr></thead><tbody>'
+    +ports.map(p=>'<tr style="border-bottom:1px solid var(--bg3)">'
+      +'<td style="padding:3px 6px;color:var(--text3)">'+p.number+'</td>'
+      +'<td style="padding:3px 6px;font-family:monospace">'+(p.label||'')+'</td>'
+      +'<td style="padding:3px 6px">'+(p.node_description||'')+'</td>'
+      +'<td style="padding:3px 6px;font-family:monospace">'+(p.node_ip||'')+'</td>'
+      +'<td style="padding:3px 6px;font-family:monospace">'+(p.node_mac||'')+'</td>'
+      +'</tr>').join('')
+    +'</tbody></table></div>';
+  document.getElementById('imp-preview-table').innerHTML=html;
+  impBuildSummary();
+}
+async function impLoadRooms(){
+  const clientId=document.getElementById('imp-client-sel').value;
+  document.getElementById('imp-room-sel').innerHTML='<option value="">— selecciona —</option>';
+  document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>';
+  document.getElementById('imp-confirm-btn').disabled=true;
+  document.getElementById('imp-summary').innerHTML='';
+  if(!clientId) return;
+  const rooms=await api('GET',`/api/clients/${clientId}/rooms`)||[];
+  document.getElementById('imp-room-sel').innerHTML='<option value="">— selecciona —</option>'
+    +rooms.map(r=>'<option value="'+r.id+'">'+r.name+'</option>').join('');
+}
+async function impLoadPanels(){
+  const roomId=document.getElementById('imp-room-sel').value;
+  document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>';
+  document.getElementById('imp-confirm-btn').disabled=true;
+  document.getElementById('imp-summary').innerHTML='';
+  if(!roomId) return;
+  const allPanels=await api('GET',`/api/rooms/${roomId}/patch-panels`)||[];
+  const panels=allPanels.filter(p=>p.cabinet_id);
+  if(!panels.length){
+    document.getElementById('imp-panel-sel').innerHTML='<option value="">Sin paneles en gabinetes para este cuarto</option>';
+    return;
+  }
+  document.getElementById('imp-panel-sel').innerHTML='<option value="">— selecciona —</option>'
+    +panels.map(p=>'<option value="'+p.id+'">'+p.name+'</option>').join('');
+}
+function impBuildSummary(){
+  const ppSel=document.getElementById('imp-panel-sel');
+  const ppId=ppSel.value;
+  const ppName=ppSel.options[ppSel.selectedIndex]?.text||'';
+  const clientSel=document.getElementById('imp-client-sel');
+  const clientName=clientSel.options[clientSel.selectedIndex]?.text||'';
+  const roomSel=document.getElementById('imp-room-sel');
+  const roomName=roomSel.options[roomSel.selectedIndex]?.text||'';
+  const sheetSel=document.getElementById('imp-sheet-sel');
+  const sheetName=sheetSel.options[sheetSel.selectedIndex]?.text||'';
+  const btn=document.getElementById('imp-confirm-btn');
+  if(!ppId){btn.disabled=true;document.getElementById('imp-summary').innerHTML='';return;}
+  document.getElementById('imp-summary').innerHTML=
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:12px">'
+    +'<div style="color:var(--text3);margin-bottom:4px">Resumen de importación:</div>'
+    +'<div>📄 Origen: <strong>'+sheetName+'</strong></div>'
+    +'<div>🏢 Destino: <strong>'+clientName+' › '+roomName+' › '+ppName+'</strong></div>'
+    +'</div>';
+  btn.disabled=false;
+}
+async function impConfirm(){
+  const ppId=document.getElementById('imp-panel-sel').value;
+  const sheetIdx=parseInt(document.getElementById('imp-sheet-sel').value)||0;
+  if(!ppId||!_impFile) return;
+  const btn=document.getElementById('imp-confirm-btn');
   btn.innerHTML='<span class="spinner"></span> Importando…';btn.disabled=true;
   try{
     const fd=new FormData();
     fd.append('file',_impFile);
-    fd.append('client_name',clientName);
-    const result=await fetch(API+'/api/import/excel',{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
-    if(!result.ok){const e=await result.json();throw new Error(e.detail);}
-    const data=await result.json();
-    const warnHtml=data.warnings?.length?`<div style="margin-top:8px;color:var(--orange);font-size:11px">${data.warnings.join('<br>')}</div>`:'';
-    document.getElementById('imp-result').innerHTML=`
-      <div style="background:#0a2a0a;border:1px solid #1a4a1a;border-radius:var(--radius);padding:12px">
-        <div style="color:var(--green);font-weight:600;margin-bottom:4px">✓ Importación exitosa</div>
-        <div style="font-size:12px;color:var(--text2)">
-          ${data.rooms_created} cuartos creados · ${data.ports_imported} puertos importados
-        </div>
-        ${warnHtml}
-        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openClientDetail(${data.client_id},'${clientName.replace(/'/g,"\\'")}')">Ver cliente →</button>
-      </div>`;
+    fd.append('sheet_index',sheetIdx);
+    const res=await fetch(API+`/api/import/into-panel/${ppId}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const data=await res.json();
+    document.getElementById('imp-result').innerHTML=
+      '<div style="background:#0a2a0a;border:1px solid #1a4a1a;border-radius:var(--radius);padding:12px">'
+      +'<div style="color:var(--green);font-weight:600;margin-bottom:6px">✓ Importación exitosa</div>'
+      +'<div style="font-size:12px;color:var(--text2)">'
+      +'Panel: <strong>'+data.panel_name+'</strong> · Hoja: <strong>'+data.sheet_name+'</strong><br>'
+      +'<strong>'+data.ports_updated+'</strong> puertos actualizados'
+      +'</div>'
+      +'<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openClientDetail('+data.client_id+',\'\')">Ver cliente →</button>'
+      +'</div>';
     toast('Importación exitosa','success');
+    impReset();
   }catch(e){
-    document.getElementById('imp-result').innerHTML=`<div style="color:var(--red);font-size:12px">❌ ${e.message}</div>`;
+    document.getElementById('imp-result').innerHTML='<div style="color:var(--red);font-size:12px">❌ '+e.message+'</div>';
     toast(e.message,'error');
-  }finally{btn.innerHTML='Importar';btn.disabled=false;}
+  }finally{btn.innerHTML='Confirmar importación';btn.disabled=false;}
+}
+function impReset(){
+  _impFile=null;
+  _impSheets=[];
+  document.getElementById('imp-file').value='';
+  document.getElementById('imp-drop-text').textContent='📂 Arrastra el archivo .xlsx aquí o haz clic para seleccionar';
+  document.getElementById('imp-drop').style.borderColor='var(--border)';
+  document.getElementById('imp-step2').style.display='none';
+  document.getElementById('imp-summary').innerHTML='';
+  document.getElementById('imp-confirm-btn').disabled=true;
 }
 
 // ═══════════════════════════════════════════════════════════ AUDIT
@@ -1663,6 +1901,7 @@ const MODALS={
     },
     collect:(id,extra)=>({
       client_id:id?undefined:parseInt(v('f-client_id'))||extra?.client_id,
+      building_id:id?undefined:(extra?.building_id||null),
       name:v('f-name'),location:v('f-location')||null,notes:v('f-notes')||null,
       switch_model:v('f-sw-model')||null,switch_mac:v('f-sw-mac')||null,switch_ip:v('f-sw-ip')||null,
       ap_model:v('f-ap-model')||null,ap_mac:v('f-ap-mac')||null,ap_ip:v('f-ap-ip')||null,
@@ -1678,36 +1917,55 @@ const MODALS={
   patch_panel:{
     title:id=>id?'Editar Patch Panel':'Nuevo Patch Panel',
     fields:async(id,extra)=>{
-      let d={room_id:extra?.room_id};
-      if(id) d=await api('GET',`/api/patch-panels/${id}`)||{};
+      let d={};
+      let autoFloor=1,autoBuilding='',autoRoomLetter='A',autoPanelLetter='A';
+      if(id){
+        d=await api('GET',`/api/patch-panels/${id}`)||{};
+      } else if(extra?.room_id){
+        const [roomData,panelsData]=await Promise.all([
+          api('GET',`/api/rooms/${extra.room_id}`),
+          api('GET',`/api/rooms/${extra.room_id}/patch-panels`)
+        ]);
+        const room=roomData||{};
+        const existing=panelsData||[];
+        const first=existing[0];
+        autoFloor=first?.floor??1;
+        autoBuilding=first?.building??'';
+        const nm=(room.name||'').match(/^([A-ZÁÉÍÓÚÜ])\s*[—\-]/i);
+        autoRoomLetter=first?.room_letter??(nm?.[1]?.toUpperCase()||'A');
+        const used=new Set(existing.map(p=>p.panel_letter));
+        autoPanelLetter='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').find(l=>!used.has(l))||'A';
+      }
+      const floor=id?(d.floor??1):autoFloor;
+      const building=id?(d.building??''):autoBuilding;
+      const roomLetter=id?(d.room_letter||'A'):autoRoomLetter;
+      const panelLetter=id?(d.panel_letter||'A'):autoPanelLetter;
       return `
         <div class="form-row">
           <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
           <div class="fgroup"><label>Formato</label>
             <select id="f-format">
-              <option value="simple" ${(d.format||'simple')==='simple'?'selected':''}>Simple</option>
-              <option value="full" ${d.format==='full'?'selected':''}>Full</option>
+              <option value="simple" ${(d.format||'simple')==='simple'?'selected':''}>Simple (1A-A01)</option>
+              <option value="full" ${d.format==='full'?'selected':''}>Full (1A-A-A01)</option>
             </select>
           </div>
         </div>
-        <div class="form-row">
-          <div class="fgroup"><label>Marca</label><input id="f-brand" value="${d.brand||''}"></div>
-          <div class="fgroup"><label>Modelo</label><input id="f-model" value="${d.model||''}"></div>
-        </div>
         <div class="form-row-3">
-          <div class="fgroup"><label>Piso *</label><input id="f-floor" type="number" value="${d.floor||1}" min="1"></div>
-          <div class="fgroup"><label>Letra cuarto *</label><input id="f-room-letter" maxlength="1" value="${d.room_letter||'A'}"></div>
-          <div class="fgroup"><label>Letra panel *</label><input id="f-panel-letter" maxlength="1" value="${d.panel_letter||'A'}"></div>
+          <div class="fgroup"><label>Piso *</label><input id="f-floor" type="number" value="${floor}" min="1"></div>
+          <div class="fgroup"><label>Edificio</label><input id="f-building" maxlength="1" value="${building}"></div>
+          <div class="fgroup"><label>Cuarto *</label><input id="f-room-letter" maxlength="1" value="${roomLetter}"></div>
         </div>
-        <div class="fgroup"><label>Edificio (solo formato full)</label><input id="f-building" maxlength="1" value="${d.building||''}"></div>
+        <div class="fgroup"><label>Letra Panel *</label><input id="f-panel-letter" maxlength="1" value="${panelLetter}"></div>
         <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>
         ${!id?'<div style="font-size:11px;color:var(--text2);margin-top:8px">Al guardar se generarán automáticamente 24 puertos.</div>':''}`;
     },
     collect:(id,extra)=>({
       room_id:id?undefined:extra?.room_id,
-      name:v('f-name'),format:v('f-format'),brand:v('f-brand')||null,model:v('f-model')||null,
-      floor:parseInt(v('f-floor'))||1,room_letter:(v('f-room-letter')||'A').toUpperCase(),
-      panel_letter:(v('f-panel-letter')||'A').toUpperCase(),building:v('f-building')||null,notes:v('f-notes')||null,
+      name:v('f-name'),format:v('f-format'),
+      floor:parseInt(v('f-floor'))||1,building:v('f-building')||null,
+      room_letter:(v('f-room-letter')||'A').toUpperCase(),
+      panel_letter:(v('f-panel-letter')||'A').toUpperCase(),
+      notes:v('f-notes')||null,
     }),
     save:(id,d)=>{
       if(id){const{room_id,...rest}=d;return api('PUT',`/api/patch-panels/${id}`,rest);}

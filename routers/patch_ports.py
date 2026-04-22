@@ -13,8 +13,9 @@ from services.completeness import evaluate_port
 
 router = APIRouter()
 
-LABEL_SIMPLE = re.compile(r"^[0-9][A-Z]-[A-Z][0-9]{2}$")
-LABEL_FULL   = re.compile(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$")
+LABEL_SIMPLE   = re.compile(r"^[0-9][A-Z]-[A-Z][0-9]{2}$")
+LABEL_FULL     = re.compile(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$")
+LABEL_EXTENDED = re.compile(r"^[0-9]-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[0-9]{2}$")
 
 
 def _check_label_unique(db: Session, room_id: int, label: str, exclude_port_id: int | None = None):
@@ -93,7 +94,12 @@ def update_port(
 
     if payload.label and payload.label != port.label:
         fmt = pp.format
-        pattern = LABEL_FULL if fmt == "full" else LABEL_SIMPLE
+        if fmt == "extended":
+            pattern = LABEL_EXTENDED
+        elif fmt == "full":
+            pattern = LABEL_FULL
+        else:
+            pattern = LABEL_SIMPLE
         if not pattern.match(payload.label):
             raise HTTPException(status_code=400, detail="Formato de etiqueta inválido")
         _check_label_unique(db, room.id, payload.label, exclude_port_id=port_id)

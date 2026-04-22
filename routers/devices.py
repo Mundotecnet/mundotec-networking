@@ -20,12 +20,15 @@ class DeviceCreate(BaseModel):
     category: str
     name: str
     device_type: str
+    cabinet_id: Optional[int] = None
     brand: str = ""
     model: str = ""
+    serial: Optional[str] = None
     mac: Optional[str] = None
     ip: Optional[str] = None
     hostname: Optional[str] = None
     admin_port: Optional[str] = None
+    port_count: int = 0
     username: Optional[str] = None
     password: Optional[str] = None
     notes: Optional[str] = None
@@ -34,12 +37,15 @@ class DeviceCreate(BaseModel):
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     device_type: Optional[str] = None
+    cabinet_id: Optional[int] = None
     brand: Optional[str] = None
     model: Optional[str] = None
+    serial: Optional[str] = None
     mac: Optional[str] = None
     ip: Optional[str] = None
     hostname: Optional[str] = None
     admin_port: Optional[str] = None
+    port_count: Optional[int] = None
     username: Optional[str] = None
     password: Optional[str] = None
     notes: Optional[str] = None
@@ -53,21 +59,27 @@ class DeviceOut(BaseModel):
     device_type: str
     brand: str
     model: str
+    serial: Optional[str]
     mac: Optional[str]
     ip: Optional[str]
     hostname: Optional[str]
     admin_port: Optional[str]
+    port_count: int
     notes: Optional[str]
     has_credentials: bool = False
 
     model_config = {"from_attributes": True}
 
+    cabinet_id: Optional[int] = None
+
     @classmethod
     def from_model(cls, d: models.Device) -> "DeviceOut":
         return cls(
-            id=d.id, room_id=d.room_id, category=d.category, name=d.name,
+            id=d.id, room_id=d.room_id, cabinet_id=d.cabinet_id,
+            category=d.category, name=d.name,
             device_type=d.device_type, brand=d.brand, model=d.model,
-            mac=d.mac, ip=d.ip, hostname=d.hostname, admin_port=d.admin_port,
+            serial=d.serial, mac=d.mac, ip=d.ip, hostname=d.hostname,
+            admin_port=d.admin_port, port_count=d.port_count or 0,
             notes=d.notes,
             has_credentials=bool(d.username_encrypted or d.password_encrypted),
         )
@@ -82,6 +94,17 @@ class CredentialsOut(BaseModel):
 def list_devices(room_id: int, db: Session = Depends(get_db),
                  _: models.User = Depends(get_current_user)):
     devs = db.query(models.Device).filter(models.Device.room_id == room_id).order_by(models.Device.name).all()
+    red   = [DeviceOut.from_model(d) for d in devs if d.category == "activo_red"]
+    final = [DeviceOut.from_model(d) for d in devs if d.category == "activo_final"]
+    return {"activo_red": red, "activo_final": final}
+
+
+@router.get("/cabinets/{cabinet_id}/devices")
+def list_cabinet_devices(cabinet_id: int, db: Session = Depends(get_db),
+                         _: models.User = Depends(get_current_user)):
+    devs = db.query(models.Device).filter(
+        models.Device.cabinet_id == cabinet_id
+    ).order_by(models.Device.name).all()
     red   = [DeviceOut.from_model(d) for d in devs if d.category == "activo_red"]
     final = [DeviceOut.from_model(d) for d in devs if d.category == "activo_final"]
     return {"activo_red": red, "activo_final": final}
@@ -131,20 +154,26 @@ def create_device(
 
     d = models.Device(
         room_id=room_id,
+        cabinet_id=payload.cabinet_id,
         category=payload.category,
         name=payload.name,
         device_type=payload.device_type,
         brand=payload.brand,
         model=payload.model,
+        serial=payload.serial,
         mac=payload.mac,
         ip=payload.ip,
         hostname=payload.hostname,
         admin_port=payload.admin_port,
+        port_count=payload.port_count,
         notes=payload.notes,
         username_encrypted=encrypt(payload.username) if payload.username else None,
         password_encrypted=encrypt(payload.password) if payload.password else None,
     )
     db.add(d)
+    db.flush()
+    for i in range(1, payload.port_count + 1):
+        db.add(models.DevicePort(device_id=d.id, port_number=str(i), status="libre"))
     db.commit()
     db.refresh(d)
     audit_svc.log(db, "CREATE", "device", entity_id=d.id, entity_label=d.name,
@@ -172,8 +201,15 @@ def update_device(
         d.password_encrypted = encrypt(data.pop("password")) if data["password"] else None
     else:
         data.pop("password", None)
+    new_port_count = data.pop("port_count", None)
     for k, v in data.items():
         setattr(d, k, v)
+    if new_port_count is not None and new_port_count != d.port_count:
+        existing = {p.port_number for p in d.ports}
+        for i in range(1, new_port_count + 1):
+            if str(i) not in existing:
+                db.add(models.DevicePort(device_id=d.id, port_number=str(i), status="libre"))
+        d.port_count = new_port_count
     db.commit()
     db.refresh(d)
     audit_svc.log(db, "UPDATE", "device", entity_id=d.id, entity_label=d.name,

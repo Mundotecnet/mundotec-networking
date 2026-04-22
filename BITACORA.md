@@ -4,7 +4,7 @@
 **Servidor:** `mserver` — Ubuntu 22.04 — IP `192.168.88.250`
 **Ruta del proyecto:** `/home/lroot/mundotec-networking`
 **Entorno de trabajo:** Claude Code corre directamente en el servidor
-**Última actualización:** 2026-04-20
+**Última actualización:** 2026-04-22
 
 ---
 
@@ -182,6 +182,7 @@ tail -20 /home/lroot/backups/backup_networking.log
 | Fecha | Tipo | Descripción |
 |-------|------|-------------|
 | 2026-04-20 | Git inicial | v1.0.0 — Primera versión funcional completa |
+| 2026-04-22 | Fix crítico | `let _impFile` duplicado en index.html rompía todo el JS (login inaccesible) |
 
 ---
 
@@ -206,4 +207,23 @@ tail -20 /home/lroot/backups/backup_networking.log
 | 13 | Fix | `@` en password URL-encoded (`%40`) para DATABASE_URL en SQLAlchemy |
 
 ---
+### [SESIÓN 3] — 2026-04-22 — Fix login + Sprint 5 + sistema de memoria
+
+| # | Tipo | Descripción |
+|---|------|-------------|
+| 1 | Feat | Sprint 5: motor de reportes PDF/XLSX (6 tipos, WeasyPrint, identidad MundoTec) |
+| 2 | Fix  | Sprint 5 introdujo `let _impFile = null;` duplicado → SyntaxError → JS completo roto → login inaccesible |
+| 3 | Fix  | Contraseña admin reseteada a `Admin123!` (hash en BD no coincidía con ninguna clave conocida) |
+| 4 | Infra | Memoria persistente creada en `.claude/projects/.../memory/` para no perder contexto entre sesiones |
+
+---
+
+## GOTCHAS ADICIONALES (actualizado 2026-04-22)
+
+9. **Verificar duplicados JS tras editar index.html:** `grep -n "^let \|^const " static/index.html | sort | uniq -d`
+10. **Static files no necesitan restart:** cambios en `static/index.html` aplican inmediatamente. Solo reiniciar uvicorn cuando cambian archivos `.py`.
+11. **Contraseña admin:** si el login falla, verificar hash real en BD con `services.crypto.verify_pw` antes de asumir cuál es la contraseña.
+
+---
+
 *Actualizar esta bitácora al cierre de cada sesión con `"cierra la sesión"`*

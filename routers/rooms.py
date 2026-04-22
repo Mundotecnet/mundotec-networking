@@ -10,11 +10,13 @@ from services import audit as audit_svc
 
 router = APIRouter()
 
-VALID_FORMATS = {"simple", "full"}
+VALID_FORMATS = {"simple", "full", "extended"}
 
 
 class RoomCreate(BaseModel):
     name: str
+    letter: Optional[str] = None
+    building_id: Optional[int] = None
     location: Optional[str] = None
     notes: Optional[str] = None
     switch_model: Optional[str] = None
@@ -28,6 +30,8 @@ class RoomCreate(BaseModel):
 
 class RoomUpdate(BaseModel):
     name: Optional[str] = None
+    letter: Optional[str] = None
+    building_id: Optional[int] = None
     location: Optional[str] = None
     notes: Optional[str] = None
     switch_model: Optional[str] = None
@@ -42,6 +46,8 @@ class RoomUpdate(BaseModel):
 class RoomOut(BaseModel):
     id: int
     client_id: int
+    building_id: Optional[int]
+    letter: Optional[str]
     name: str
     location: Optional[str]
     notes: Optional[str]
