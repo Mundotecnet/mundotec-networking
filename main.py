@@ -51,6 +51,7 @@ from routers import (
     trazabilidad,
     ipam, fibra, credenciales,
     reportes,
+    conexiones_directas,
 )
 
 app = FastAPI(
@@ -97,6 +98,7 @@ for r in [
     fibra.router,
     credenciales.router,
     reportes.router,
+    conexiones_directas.router,
 ]:
     app.include_router(r, prefix=PREFIX)
 

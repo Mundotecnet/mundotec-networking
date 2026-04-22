@@ -1218,12 +1218,14 @@ function renderRoomAccordions(container, rooms, analytics, clientId){
           <div class="tab" onclick="showRoomTab(${room.id},'conexiones',this)">Interconexiones</div>
           <div class="tab" onclick="showRoomTab(${room.id},'diagrama',this)">Diagrama</div>
           <div class="tab" onclick="showRoomTab(${room.id},'analitica',this)">Analítica</div>
+          <div class="tab" onclick="showRoomTab(${room.id},'cdirectas',this)">Conexiones Directas</div>
         </div>
         <div id="room-tab-activos-${room.id}"><div class="empty">Cargando…</div></div>
         <div id="room-tab-pasivos-${room.id}" style="display:none"></div>
         <div id="room-tab-conexiones-${room.id}" style="display:none"></div>
         <div id="room-tab-diagrama-${room.id}" style="display:none"></div>
         <div id="room-tab-analitica-${room.id}" style="display:none"></div>
+        <div id="room-tab-cdirectas-${room.id}" style="display:none"></div>
       </div>
     `;
     container.appendChild(acc);
@@ -1247,7 +1249,7 @@ function toggleAcc(head){
 }
 
 function showRoomTab(roomId, tab, el){
-  const tabs = ['activos','pasivos','conexiones','diagrama','analitica'];
+  const tabs = ['activos','pasivos','conexiones','diagrama','analitica','cdirectas'];
   tabs.forEach(t=>{
     const el2=document.getElementById(`room-tab-${t}-${roomId}`);
     if(el2) el2.style.display='none';
@@ -1262,6 +1264,7 @@ function showRoomTab(roomId, tab, el){
     conexiones:()=>loadRoomTabConexiones(roomId),
     diagrama:()=>loadRoomTabDiagrama(roomId),
     analitica:()=>loadRoomTabAnalitica(roomId),
+    cdirectas:()=>loadRoomTabCDirectas(roomId),
   };
   loaders[tab]?.();
 }
@@ -1638,6 +1641,147 @@ async function loadRoomTabAnalitica(roomId){
     } else html+='<div class="empty">✅ Sin issues en este cuarto</div>';
     el.innerHTML=html;
   }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+// ═══════════════════════════════════════════════════════════ CONEXIONES DIRECTAS
+async function loadRoomTabCDirectas(roomId){
+  const el=document.getElementById(`room-tab-cdirectas-${roomId}`);
+  try{
+    const [conns,devs]=await Promise.all([
+      api('GET',`/api/rooms/${roomId}/direct-connections`),
+      api('GET',`/api/rooms/${roomId}/direct-connections/devices`),
+    ]);
+    window._cdDevs=window._cdDevs||{};
+    window._cdDevs[roomId]=devs||[];
+    const devOptsA=(devs||[]).map(d=>`<option value="${d.id}">${d.name} (${d.device_type})</option>`).join('');
+    let html=`
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
+        <div style="font-weight:600;font-size:11px;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Nueva conexión directa</div>
+        <div style="display:grid;grid-template-columns:1fr 28px 1fr;gap:8px;align-items:start">
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">EQUIPO A</div>
+            <select id="cdeva-${roomId}" style="width:100%;margin-bottom:6px" onchange="cdLoadPortsA(${roomId})">
+              <option value="">— seleccionar —</option>${devOptsA}
+            </select>
+            <select id="cporta-${roomId}" style="width:100%" disabled>
+              <option value="">— primero elige equipo —</option>
+            </select>
+          </div>
+          <div style="text-align:center;padding-top:30px;font-size:16px;color:var(--primary)">↔</div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">EQUIPO B</div>
+            <select id="cdevb-${roomId}" style="width:100%;margin-bottom:6px" onchange="cdLoadPortsB(${roomId})">
+              <option value="">— seleccionar —</option>${devOptsA}
+            </select>
+            <select id="cportb-${roomId}" style="width:100%" disabled>
+              <option value="">— primero elige equipo —</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">TIPO DE CABLE</div>
+            <select id="cdcable-${roomId}" style="width:100%">
+              <option value="">— opcional —</option>
+              <option>UTP Cat5e</option><option>UTP Cat6</option><option>UTP Cat6A</option>
+              <option>Fibra OM3</option><option>Fibra OM4</option><option>Fibra OS2</option>
+              <option>DAC</option><option>Serial</option><option>Coaxial</option>
+            </select>
+          </div>
+          <div style="flex:2">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">NOTAS</div>
+            <input id="cdnotes-${roomId}" type="text" placeholder="opcional…" style="width:100%;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:flex-end">
+          <button class="btn btn-primary btn-sm" onclick="cdSave(${roomId})">+ Guardar conexión</button>
+        </div>
+      </div>`;
+    if((conns||[]).length){
+      html+=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;white-space:nowrap">
+          <th style="padding:6px 8px;text-align:left">Equipo A</th>
+          <th style="padding:6px 8px;text-align:left;width:1px">Puerto A</th>
+          <th style="padding:6px 8px;text-align:center;width:1px">↔</th>
+          <th style="padding:6px 8px;text-align:left">Equipo B</th>
+          <th style="padding:6px 8px;text-align:left;width:1px">Puerto B</th>
+          <th style="padding:6px 8px;text-align:left;width:1px">Cable</th>
+          <th style="padding:6px 8px;text-align:left">Notas</th>
+          <th style="padding:6px 8px;width:1px"></th>
+        </tr></thead><tbody>`
+        +conns.map(c=>{
+          const paN=String(parseInt(c.port_a_number)).padStart(2,'0');
+          const pbN=String(parseInt(c.port_b_number)).padStart(2,'0');
+          const paMod=c.port_a_mode?` <span style="color:var(--text3)">(${c.port_a_mode})</span>`:'';
+          const pbMod=c.port_b_mode?` <span style="color:var(--text3)">(${c.port_b_mode})</span>`:'';
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px"><b>${c.device_a_name}</b><br><span style="font-size:10px;color:var(--text3)">${c.device_a_type}</span></td>
+            <td style="padding:6px 8px;font-family:monospace;white-space:nowrap">p:${paN}${paMod}</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--primary)">↔</td>
+            <td style="padding:6px 8px"><b>${c.device_b_name}</b><br><span style="font-size:10px;color:var(--text3)">${c.device_b_type}</span></td>
+            <td style="padding:6px 8px;font-family:monospace;white-space:nowrap">p:${pbN}${pbMod}</td>
+            <td style="padding:6px 8px;white-space:nowrap;color:var(--text2)">${c.cable_type||'—'}</td>
+            <td style="padding:6px 8px;color:var(--text2)">${c.notes||'—'}</td>
+            <td style="padding:6px 8px"><button class="btn btn-danger btn-sm" onclick="cdDelete(${c.id},${roomId})">🗑️</button></td>
+          </tr>`;
+        }).join('')
+        +`</tbody></table>`;
+    } else {
+      html+='<div class="empty">Sin conexiones directas registradas en este cuarto</div>';
+    }
+    el.innerHTML=html;
+  }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
+}
+
+function cdBuildPortOpts(ports){
+  return '<option value="">— seleccionar puerto —</option>'
+    +[...ports].sort((a,b)=>parseInt(a.port_number)-parseInt(b.port_number))
+    .map(p=>{
+      const num=String(parseInt(p.port_number)).padStart(2,'0');
+      const mode=p.port_mode?` (${p.port_mode})`:'';
+      return `<option value="${p.id}">p:${num}${mode}</option>`;
+    }).join('');
+}
+
+function cdLoadPortsA(roomId){
+  const devId=document.getElementById(`cdeva-${roomId}`).value;
+  const portSel=document.getElementById(`cporta-${roomId}`);
+  const dev=(window._cdDevs[roomId]||[]).find(d=>String(d.id)===devId);
+  if(!dev){portSel.innerHTML='<option value="">— primero elige equipo —</option>';portSel.disabled=true;return;}
+  portSel.innerHTML=cdBuildPortOpts(dev.ports);
+  portSel.disabled=false;
+}
+
+function cdLoadPortsB(roomId){
+  const devId=document.getElementById(`cdevb-${roomId}`).value;
+  const portSel=document.getElementById(`cportb-${roomId}`);
+  const dev=(window._cdDevs[roomId]||[]).find(d=>String(d.id)===devId);
+  if(!dev){portSel.innerHTML='<option value="">— primero elige equipo —</option>';portSel.disabled=true;return;}
+  portSel.innerHTML=cdBuildPortOpts(dev.ports);
+  portSel.disabled=false;
+}
+
+async function cdSave(roomId){
+  const portAId=parseInt(document.getElementById(`cporta-${roomId}`).value);
+  const portBId=parseInt(document.getElementById(`cportb-${roomId}`).value);
+  const cable=document.getElementById(`cdcable-${roomId}`).value;
+  const notes=document.getElementById(`cdnotes-${roomId}`).value.trim();
+  if(!portAId||!portBId){toast('Selecciona equipo y puerto en ambos lados','error');return;}
+  if(portAId===portBId){toast('Los puertos deben ser diferentes','error');return;}
+  try{
+    await api('POST',`/api/rooms/${roomId}/direct-connections`,{port_a_id:portAId,port_b_id:portBId,cable_type:cable||null,notes:notes||null});
+    toast('Conexión directa guardada','success');
+    loadRoomTabCDirectas(roomId);
+  }catch(e){toast(e.message||'Error al guardar','error');}
+}
+
+async function cdDelete(connId,roomId){
+  if(!confirm('¿Eliminar esta conexión directa? Los puertos quedarán disponibles nuevamente.')) return;
+  try{
+    await api('DELETE',`/api/direct-connections/${connId}`);
+    toast('Conexión eliminada','success');
+    loadRoomTabCDirectas(roomId);
+  }catch(e){toast(e.message||'Error al eliminar','error');}
 }
 
 function downloadPDF(){
