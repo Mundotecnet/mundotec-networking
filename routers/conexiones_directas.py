@@ -95,6 +95,7 @@ def _build_out(db: Session, c: models.Connection) -> DirectConnOut:
 
 
 def _get_used_port_ids(db: Session, room_id: int) -> set:
+    # Ports already in direct connections
     conns = db.query(models.Connection).filter(
         models.Connection.room_id == room_id,
         models.Connection.node_a_type == "device_port",
@@ -104,6 +105,14 @@ def _get_used_port_ids(db: Session, room_id: int) -> set:
     for c in conns:
         used.add(c.node_a_id)
         used.add(c.node_b_id)
+
+    # Ports already assigned to a patch panel port via switch_port_id
+    patch_used = db.query(models.PatchPort.switch_port_id).filter(
+        models.PatchPort.switch_port_id.isnot(None)
+    ).all()
+    for (pid,) in patch_used:
+        used.add(pid)
+
     return used
 
 
