@@ -2248,7 +2248,7 @@ const MODALS={
       let d={category:extra?.category||'activo_red',room_id:extra?.room_id};
       if(id) d=await api('GET',`/api/devices/${id}`)||{};
       const redTypes=['switch','router','firewall','ap','servidor','ups'];
-      const finalTypes=['pc','impresora','nvr','dvr','camara','pbx','reloj_marcador','otro'];
+      const finalTypes=['pc','impresora','nvr','dvr','camara','pbx','telefono','reloj_marcador','otro'];
       const cat=d.category||'activo_red';
       const types=cat==='activo_red'?redTypes:finalTypes;
       const typeOpts=types.map(t=>`<option value="${t}" ${d.device_type===t?'selected':''}>${t}</option>`).join('');
