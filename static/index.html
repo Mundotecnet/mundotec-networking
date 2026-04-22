@@ -1366,46 +1366,75 @@ function renderPortsGrid(ports, ppId, roomId){
 function renderPortsList(ports, ppId, roomId){
   const inp='background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:11px;width:100%;padding:2px 4px;outline:none;font-family:inherit';
   const inpFocus='onFocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg2)\'"';
+  const redDevs=(window._roomSwDevs||{})[roomId]||[];
+  const devOptBase='<option value="">—</option>'+redDevs.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+
   const rows=ports.sort((a,b)=>a.number-b.number).map(p=>{
     const nt=p.node_type||'';
     const isLibre=nt==='libre'||nt==='prevista';
-    const descDisabled=isLibre?'disabled':'';
-    const ipDisabled=isLibre?'disabled':'';
-    const macDisabled=isLibre?'disabled':'';
+
+    // find linked device from switch_port_id
+    let linkedDevId='', linkedPortId=p.switch_port_id||'';
+    if(linkedPortId){
+      for(const d of redDevs){
+        const dp=(window._swPortsMap||{})[d.id]||[];
+        if(dp.some(x=>x.id===linkedPortId)){linkedDevId=String(d.id);break;}
+      }
+    }
+    const devOpts=devOptBase.replace(`value="${linkedDevId}"`,`value="${linkedDevId}" selected`);
+    const devPorts=linkedDevId?(window._swPortsMap||{})[linkedDevId]||[];
+    const portOpts='<option value="">—</option>'
+      +(devPorts.map(x=>`<option value="${x.id}"${x.id===linkedPortId?' selected':''}>${x.port_number}${x.port_mode?' ('+x.port_mode+')':''}</option>`).join(''));
+
     return `<tr id="prow-${p.id}" style="border-bottom:1px solid var(--bg3)">`
       +`<td style="padding:3px 6px;text-align:center;color:var(--text3);font-size:11px;white-space:nowrap">${p.number}</td>`
       +`<td style="padding:3px 4px;font-family:monospace;font-size:10px;color:var(--text3);white-space:nowrap">${p.label||''}</td>`
-      +`<td style="padding:3px 4px;min-width:110px"><select id="pit-${p.id}" style="${inp}" onchange="ppRowTypeChange(${p.id})" onblur="ppRowSave(${p.id},${ppId},${roomId})">`
+      // equipo + puerto — columnas prioritarias
+      +`<td style="padding:3px 4px;min-width:130px"><select id="pdev-${p.id}" style="${inp}" onchange="ppRowDevChange(${p.id},${roomId})" onblur="ppRowSave(${p.id},${ppId},${roomId})">${devOpts}</select></td>`
+      +`<td style="padding:3px 4px;min-width:90px"><select id="pport-${p.id}" style="${inp}" onblur="ppRowSave(${p.id},${ppId},${roomId})" ${!linkedDevId?'disabled':''}>${portOpts}</select></td>`
+      // resto de campos
+      +`<td style="padding:3px 4px;min-width:100px"><select id="pit-${p.id}" style="${inp}" onchange="ppRowTypeChange(${p.id})" onblur="ppRowSave(${p.id},${ppId},${roomId})">`
         +`<option value="" ${!nt?'selected':''}>—</option>`
         +`<option value="descripcion" ${nt==='descripcion'?'selected':''}>Descripción</option>`
         +`<option value="libre" ${nt==='libre'?'selected':''}>Libre</option>`
         +`<option value="prevista" ${nt==='prevista'?'selected':''}>Prevista</option>`
       +`</select></td>`
-      +`<td style="padding:3px 4px;min-width:160px"><input id="pid-${p.id}" style="${inp}" value="${(p.node_description||'').replace(/"/g,'&quot;')}" placeholder="Descripción" ${descDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
-      +`<td style="padding:3px 4px;min-width:110px"><input id="pii-${p.id}" style="${inp};font-family:monospace" value="${p.node_ip||''}" placeholder="192.168.x.x" ${ipDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
-      +`<td style="padding:3px 4px;min-width:130px"><input id="pim-${p.id}" style="${inp};font-family:monospace" value="${p.node_mac||''}" placeholder="AA:BB:CC:DD:EE:FF" ${macDisabled} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
-      +`<td style="padding:3px 6px;text-align:center;width:28px"><span id="pst-${p.id}" title="Guardado">　</span></td>`
-      +`<td style="padding:3px 4px;width:24px"><button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:10px" onclick="openModal('port',${p.id})" title="Editar completo">⋯</button></td>`
+      +`<td style="padding:3px 4px;min-width:150px"><input id="pid-${p.id}" style="${inp}" value="${(p.node_description||'').replace(/"/g,'&quot;')}" placeholder="Descripción" ${isLibre?'disabled':''} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
+      +`<td style="padding:3px 4px;min-width:100px"><input id="pii-${p.id}" style="${inp};font-family:monospace" value="${p.node_ip||''}" placeholder="192.168.x.x" ${isLibre?'disabled':''} ${inpFocus} onblur="ppRowSave(${p.id},${ppId},${roomId})"></td>`
+      +`<td style="padding:3px 6px;text-align:center;width:24px"><span id="pst-${p.id}">　</span></td>`
+      +`<td style="padding:3px 4px;width:22px"><button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:10px" onclick="openModal('port',${p.id})" title="Editar completo">⋯</button></td>`
       +'</tr>';
   }).join('');
   return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);font-size:10px">'
+    +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);font-size:10px;white-space:nowrap">'
     +'<th style="padding:4px 6px;text-align:center">#</th>'
     +'<th style="padding:4px 6px">Etiqueta</th>'
+    +'<th style="padding:4px 6px">Equipo activo</th>'
+    +'<th style="padding:4px 6px">Puerto</th>'
     +'<th style="padding:4px 6px">Tipo</th>'
     +'<th style="padding:4px 6px">Descripción</th>'
     +'<th style="padding:4px 6px">IP</th>'
-    +'<th style="padding:4px 6px">MAC</th>'
     +'<th></th><th></th>'
     +'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
 }
 
+function ppRowDevChange(portId, roomId){
+  const devId=document.getElementById('pdev-'+portId)?.value;
+  const portSel=document.getElementById('pport-'+portId);
+  if(!portSel) return;
+  if(!devId){portSel.innerHTML='<option value="">—</option>';portSel.disabled=true;return;}
+  const devPorts=(window._swPortsMap||{})[devId]||[];
+  portSel.innerHTML='<option value="">—</option>'
+    +devPorts.map(x=>`<option value="${x.id}">${x.port_number}${x.port_mode?' ('+x.port_mode+')':''}</option>`).join('');
+  portSel.disabled=false;
+}
+
 function ppRowTypeChange(portId){
   const nt=document.getElementById('pit-'+portId)?.value;
   const isLibre=nt==='libre'||nt==='prevista';
-  ['pid-','pii-','pim-'].forEach(pre=>{
+  ['pid-','pii-'].forEach(pre=>{
     const el=document.getElementById(pre+portId);
     if(el){el.disabled=isLibre;if(isLibre)el.value='';}
   });
@@ -1415,25 +1444,25 @@ async function ppRowSave(portId, ppId, roomId){
   const nt=document.getElementById('pit-'+portId)?.value||null;
   const desc=document.getElementById('pid-'+portId)?.value||null;
   const ip=document.getElementById('pii-'+portId)?.value||null;
-  const mac=document.getElementById('pim-'+portId)?.value||null;
+  const swPortId=document.getElementById('pport-'+portId)?.value;
   const ind=document.getElementById('pst-'+portId);
-  if(ind) ind.textContent='…';
+  if(ind){ind.textContent='…';ind.style.color='var(--text3)';}
   try{
-    const saved=await api('PUT',`/api/patch-ports/${portId}`,{
+    const payload={
       node_type:nt||null,
       node_description:(nt&&nt!=='libre'&&nt!=='prevista')?desc||null:null,
       node_ip:(nt&&nt!=='libre'&&nt!=='prevista')?ip||null:null,
-      node_mac:(nt&&nt!=='libre'&&nt!=='prevista')?mac||null:null,
-    });
+      switch_port_id:swPortId?parseInt(swPortId):null,
+    };
+    const saved=await api('PUT',`/api/patch-ports/${portId}`,payload);
     if(ind){ind.textContent='✓';ind.style.color='var(--green)';setTimeout(()=>{ind.textContent='　';ind.style.color='';},2000);}
-    // update cache
     if(ppPortsCache[ppId]){
       const idx=ppPortsCache[ppId].findIndex(p=>p.id===portId);
-      if(idx>=0) Object.assign(ppPortsCache[ppId][idx],saved||{node_type:nt,node_description:desc,node_ip:ip,node_mac:mac});
+      if(idx>=0) Object.assign(ppPortsCache[ppId][idx],saved||payload);
     }
   }catch(e){
     if(ind){ind.textContent='✗';ind.style.color='var(--red)';}
-    toast('Error al guardar puerto','error');
+    toast('Error al guardar','error');
   }
 }
 
@@ -1451,13 +1480,27 @@ function togglePPView(ppId, roomId){
 async function loadRoomTabPasivos(roomId){
   const el=document.getElementById(`room-tab-pasivos-${roomId}`);
   try{
-    const room = await api('GET',`/api/rooms/${roomId}`);
-    const panels = await api('GET',`/api/rooms/${roomId}/patch-panels`)||[];
-    const roomHasSwitch = !!(room.switch_ip||room.switch_mac||room.switch_model);
+    const [room, panels, devsData] = await Promise.all([
+      api('GET',`/api/rooms/${roomId}`),
+      api('GET',`/api/rooms/${roomId}/patch-panels`),
+      api('GET',`/api/rooms/${roomId}/devices`),
+    ]);
+    const roomHasSwitch = !!(room?.switch_ip||room?.switch_mac||room?.switch_model);
+    const redDevs = devsData?.activo_red||[];
+    // cache devices per room
+    window._roomSwDevs = window._roomSwDevs||{};
+    window._roomSwDevs[roomId] = redDevs;
+    window._swPortsMap = window._swPortsMap||{};
+    // pre-fetch ports for each device (parallel)
+    await Promise.all(redDevs.map(async d=>{
+      if(!window._swPortsMap[d.id])
+        window._swPortsMap[d.id]=await api('GET',`/api/devices/${d.id}/ports`)||[];
+    }));
+
     let html=`<div style="margin-bottom:12px;display:flex;justify-content:flex-end">
       <button class="btn btn-primary btn-sm" onclick="openModal('patch_panel',null,{room_id:${roomId}})">+ Patch Panel</button>
     </div>`;
-    for(const pp of panels){
+    for(const pp of panels||[]){
       const ports = await api('GET',`/api/patch-panels/${pp.id}/ports`)||[];
       ppPortsCache[pp.id] = ports;
       if(ppViewModes[pp.id]===undefined) ppViewModes[pp.id]='grid';
@@ -1480,7 +1523,7 @@ async function loadRoomTabPasivos(roomId){
         <div id="pp-ports-${pp.id}">${portsHtml}</div>
       </div>`;
     }
-    if(!panels.length) html='<div class="empty">Sin patch panels. Agrega el primero.</div>';
+    if(!(panels||[]).length) html='<div class="empty">Sin patch panels. Agrega el primero.</div>';
     el.innerHTML=html;
   }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
 }
