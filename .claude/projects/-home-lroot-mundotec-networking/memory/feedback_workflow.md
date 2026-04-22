@@ -35,3 +35,18 @@ Los archivos en `static/` se sirven desde disco por FastAPI StaticFiles. Un camb
 
 **Why:** Se pierde tiempo innecesariamente reiniciando el servicio cuando no es necesario.
 **How to apply:** Solo reiniciar cuando cambian archivos `.py` (routers, models, main.py, etc.).
+
+## VERIFICAR JS DESPUÉS DE CADA CAMBIO EN index.html
+Antes de commitear cualquier cambio en `static/index.html`, ejecutar:
+```bash
+python3 -c "
+import re,subprocess
+with open('static/index.html') as f: c=f.read()
+s=re.findall(r'<script[^>]*>(.*?)</script>',c,re.DOTALL)
+r=subprocess.run(['node','--input-type=module'],input=s[0],capture_output=True,text=True)
+print('ERROR:'+r.stderr[:300] if r.returncode!=0 and 'localStorage' not in r.stderr else 'JS OK')
+"
+```
+
+**Why:** Dos veces se rompió el login completo por errores JS (let duplicado, ternario incompleto). El error JS en el único `<script>` bloquea TODA la página.
+**How to apply:** Obligatorio antes de cada `git commit` que toque `index.html`.

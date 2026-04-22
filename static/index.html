@@ -1391,9 +1391,8 @@ function renderPortsList(ports, ppId, roomId){
       +`<td style="padding:3px 6px;text-align:center;color:var(--text3);font-size:11px;white-space:nowrap">${p.number}</td>`
       +`<td style="padding:3px 4px;font-family:monospace;font-size:10px;color:var(--text3);white-space:nowrap">${p.label||''}</td>`
       // equipo: onchange solo rellena puertos, NO guarda
-      +`<td style="padding:3px 4px;min-width:130px"><select id="pdev-${p.id}" style="${inp}" onchange="ppRowDevChange(${p.id},${roomId})">${devOpts}</select></td>`
-      // puerto: onchange guarda inmediatamente
-      +`<td style="padding:3px 4px;min-width:90px"><select id="pport-${p.id}" style="${inp}" onchange="ppRowSave(${p.id},${ppId},${roomId})" ${!linkedDevId?'disabled':''}>${portOpts}</select></td>`
+      +`<td style="padding:3px 4px;width:1px"><select id="pdev-${p.id}" style="${inp}" onchange="ppRowDevChange(${p.id},${roomId})">${devOpts}</select></td>`
+      +`<td style="padding:3px 4px;width:1px"><select id="pport-${p.id}" style="${inp}" onchange="ppRowSave(${p.id},${ppId},${roomId})" ${!linkedDevId?'disabled':''}>${portOpts}</select></td>`
       // tipo nodo
       +`<td style="padding:3px 4px;min-width:100px"><select id="pit-${p.id}" style="${inp}" onchange="ppRowTypeChange(${p.id})" onblur="ppRowSave(${p.id},${ppId},${roomId})">`
         +`<option value="" ${!nt?'selected':''}>—</option>`
@@ -1411,8 +1410,8 @@ function renderPortsList(ports, ppId, roomId){
     +'<thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);font-size:10px;white-space:nowrap">'
     +'<th style="padding:4px 6px;text-align:center">#</th>'
     +'<th style="padding:4px 6px">Etiqueta</th>'
-    +'<th style="padding:4px 6px">Equipo activo</th>'
-    +'<th style="padding:4px 6px">Puerto</th>'
+    +'<th style="padding:4px 6px;width:1px;white-space:nowrap">Equipo activo</th>'
+    +'<th style="padding:4px 6px;width:1px;white-space:nowrap">Puerto</th>'
     +'<th style="padding:4px 6px">Tipo</th>'
     +'<th style="padding:4px 6px">Descripción</th>'
     +'<th style="padding:4px 6px">IP</th>'
