@@ -2084,13 +2084,21 @@ const MODALS={
       const allVlans=vlans||[];
       const devOpts=redDevs.map(d=>`<option value="${d.id}" ${port.device_id==d.id?'selected':''}>${d.name}</option>`).join('');
       const vlanOpts=allVlans.map(v=>`<option value="${v.id}" ${port.vlan_id==v.id?'selected':''}>${v.vlan_id} - ${v.name}</option>`).join('');
-      let swPortOpts='<option value="">Sin ligar</option>';
-      if(redDevs.length){
-        for(const dev of redDevs){
-          const ports2=await api('GET',`/api/devices/${dev.id}/ports`)||[];
-          ports2.forEach(p=>{swPortOpts+=`<option value="${p.id}" ${port.switch_port_id==p.id?'selected':''}>${dev.name} p:${p.port_number} ${p.port_mode?'('+p.port_mode+')':''}</option>`;});
-        }
+      // Build device→ports map; find which device owns the current switch_port_id
+      window._swPortsMap={};
+      let linkedDeviceId='';
+      for(const dev of redDevs){
+        const ports2=await api('GET',`/api/devices/${dev.id}/ports`)||[];
+        window._swPortsMap[dev.id]=ports2;
+        if(port.switch_port_id && ports2.some(p=>p.id===port.switch_port_id))
+          linkedDeviceId=String(dev.id);
       }
+      const swDevOpts='<option value="">— sin ligar —</option>'
+        +redDevs.map(d=>`<option value="${d.id}" ${linkedDeviceId==d.id?'selected':''}>${d.name}</option>`).join('');
+      // Build initial port options for the linked device (or empty)
+      const initPorts=linkedDeviceId?(window._swPortsMap[linkedDeviceId]||[]):[];
+      const swPortOpts='<option value="">— puerto —</option>'
+        +initPorts.map(p=>`<option value="${p.id}" ${port.switch_port_id==p.id?'selected':''}>p:${p.port_number}${p.port_mode?' ('+p.port_mode+')':''}</option>`).join('');
       return `
         <div class="port-modal-grid">
           <div>
@@ -2123,8 +2131,13 @@ const MODALS={
           </div>
           <div>
             <div class="section-label">Ligamen al switch</div>
+            <div class="fgroup"><label>Equipo activo</label>
+              <select id="f-sw-device" onchange="swDeviceChanged()">${swDevOpts}</select>
+            </div>
             <div class="fgroup"><label>Puerto del switch</label>
-              <select id="f-sw-port">${swPortOpts}</select>
+              <select id="f-sw-port" ${!linkedDeviceId?'disabled':''}>
+                ${!linkedDeviceId?'<option value="">— elige equipo primero —</option>':swPortOpts}
+              </select>
             </div>
           </div>
         </div>`;
@@ -2393,6 +2406,21 @@ function toggleNodeType(){
   const nt=document.getElementById('f-node-type')?.value;
   document.getElementById('nt-device').style.display=nt==='device'?'block':'none';
   document.getElementById('nt-desc').style.display=nt==='descripcion'?'block':'none';
+}
+
+function swDeviceChanged(){
+  const devId=document.getElementById('f-sw-device')?.value;
+  const portSel=document.getElementById('f-sw-port');
+  if(!portSel) return;
+  if(!devId){
+    portSel.innerHTML='<option value="">— elige equipo primero —</option>';
+    portSel.disabled=true;
+    return;
+  }
+  const ports=(window._swPortsMap||{})[devId]||[];
+  portSel.innerHTML='<option value="">— puerto —</option>'
+    +ports.map(p=>`<option value="${p.id}">p:${p.port_number}${p.port_mode?' ('+p.port_mode+')':''}</option>`).join('');
+  portSel.disabled=false;
 }
 
 // ═══════════════════════════════════════════════════════════ INIT
