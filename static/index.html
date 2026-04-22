@@ -1383,8 +1383,7 @@ function renderPortsList(ports, ppId, roomId){
     }
     const devOpts=devOptBase.replace(`value="${linkedDevId}"`,`value="${linkedDevId}" selected`);
     const devPorts=linkedDevId?((window._swPortsMap||{})[linkedDevId]||[]):[];
-    const portOpts='<option value="">—</option>'
-      +(devPorts.map(x=>`<option value="${x.id}"${x.id===linkedPortId?' selected':''}>${x.port_number}${x.port_mode?' ('+x.port_mode+')':''}</option>`).join(''));
+    const portOpts=buildSwPortOptions(devPorts,linkedPortId,p.id);
 
     return `<tr id="prow-${p.id}" style="border-bottom:1px solid var(--bg3)">`
       +`<td style="padding:3px 6px;text-align:center;color:var(--text3);font-size:11px;white-space:nowrap">${p.number}</td>`
@@ -1426,8 +1425,7 @@ function ppRowDevChange(portId, roomId){
   if(!portSel) return;
   if(!devId){portSel.innerHTML='<option value="">—</option>';portSel.disabled=true;return;}
   const devPorts=(window._swPortsMap||{})[devId]||[];
-  portSel.innerHTML='<option value="">—</option>'
-    +devPorts.map(x=>`<option value="${x.id}">${x.port_number}${x.port_mode?' ('+x.port_mode+')':''}</option>`).join('');
+  portSel.innerHTML=buildSwPortOptions(devPorts,null,portId);
   portSel.disabled=false;
 }
 
@@ -2185,8 +2183,7 @@ const MODALS={
         +redDevs.map(d=>`<option value="${d.id}" ${linkedDeviceId==d.id?'selected':''}>${d.name}</option>`).join('');
       // Build initial port options for the linked device (or empty)
       const initPorts=linkedDeviceId?(window._swPortsMap[linkedDeviceId]||[]):[];
-      const swPortOpts='<option value="">— puerto —</option>'
-        +initPorts.map(p=>`<option value="${p.id}" ${port.switch_port_id==p.id?'selected':''}>p:${p.port_number}${p.port_mode?' ('+p.port_mode+')':''}</option>`).join('');
+      const swPortOpts=buildSwPortOptions(initPorts,port.switch_port_id,port.id);
       return `
         <div class="port-modal-grid">
           <div>
@@ -2501,6 +2498,31 @@ function toggleNodeType(){
   document.getElementById('nt-desc').style.display=nt==='descripcion'?'block':'none';
 }
 
+// Retorna Set de switch_port_id ya asignados en toda la caché, excluyendo el puerto actual
+function getUsedSwPortIds(excludePatchPortId=null){
+  const used=new Set();
+  for(const ports of Object.values(ppPortsCache)){
+    for(const p of ports){
+      if(p.switch_port_id && p.id!==excludePatchPortId) used.add(p.switch_port_id);
+    }
+  }
+  return used;
+}
+
+// Genera opciones de puertos ordenadas 01-24, marcando los ya asignados
+function buildSwPortOptions(devPorts, selectedPortId=null, excludePatchPortId=null){
+  const used=getUsedSwPortIds(excludePatchPortId);
+  return '<option value="">—</option>'
+    +[...devPorts].sort((a,b)=>parseInt(a.port_number)-parseInt(b.port_number))
+    .map(x=>{
+      const num=String(parseInt(x.port_number)).padStart(2,'0');
+      const mode=x.port_mode?` (${x.port_mode})`:'';
+      const isCurrent=x.id===selectedPortId;
+      const isUsed=used.has(x.id)&&!isCurrent;
+      return `<option value="${x.id}"${isCurrent?' selected':''}${isUsed?' disabled':''}>p:${num}${mode}${isUsed?' — en uso':''}</option>`;
+    }).join('');
+}
+
 function swDeviceChanged(){
   const devId=document.getElementById('f-sw-device')?.value;
   const portSel=document.getElementById('f-sw-port');
@@ -2510,9 +2532,8 @@ function swDeviceChanged(){
     portSel.disabled=true;
     return;
   }
-  const ports=(window._swPortsMap||{})[devId]||[];
-  portSel.innerHTML='<option value="">— puerto —</option>'
-    +ports.map(p=>`<option value="${p.id}">p:${p.port_number}${p.port_mode?' ('+p.port_mode+')':''}</option>`).join('');
+  const devPorts=(window._swPortsMap||{})[devId]||[];
+  portSel.innerHTML=buildSwPortOptions(devPorts);
   portSel.disabled=false;
 }
 
