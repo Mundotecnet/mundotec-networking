@@ -1526,7 +1526,7 @@ async function loadRoomTabPasivos(roomId){
             <button class="btn btn-danger btn-sm" onclick="delItem('patch_panel',${pp.id},'${pp.name.replace(/'/g,"\\'")}',()=>loadRoomTabPasivos(${roomId}))">🗑️</button>
           </div>
         </div>
-        <div class="pp-stats">✓ ${sc.completos} · ! ${sc.parciales} · ? ${sc.sin_revisar} · — ${sc.libres} · ~ ${sc.previstas} | ${sc.score}%</div>
+        <div class="pp-stats">✓ ${sc.completo} · ! ${sc.parcial} · ? ${sc.sin_revisar} · — ${sc.libre} · ~ ${sc.prevista} | ${sc.score}%</div>
         <div id="pp-ports-${pp.id}">${portsHtml}</div>
       </div>`;
     }
