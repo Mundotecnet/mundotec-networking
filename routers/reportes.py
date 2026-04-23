@@ -151,6 +151,24 @@ def descargar_reporte(reporte_id: str, db: Session = Depends(get_db),
     return FileResponse(str(ruta), media_type=MIME[row["formato"]], filename=filename)
 
 
+@router.delete("/{reporte_id}", status_code=204)
+def eliminar_reporte(reporte_id: str, db: Session = Depends(get_db),
+                     current_user=Depends(require_editor)):
+    _bootstrap_tabla(db)
+    row = db.execute(text(
+        "SELECT ruta_archivo FROM reporte_historial WHERE id=:id"
+    ), {"id": reporte_id}).mappings().first()
+    if not row:
+        raise HTTPException(404, "Reporte no encontrado")
+    if row["ruta_archivo"]:
+        try:
+            Path(row["ruta_archivo"]).unlink(missing_ok=True)
+        except Exception:
+            pass
+    db.execute(text("DELETE FROM reporte_historial WHERE id=:id"), {"id": reporte_id})
+    db.commit()
+
+
 def _bootstrap_tabla(db):
     """Crea reporte_historial si no existe (sin Alembic migration para simplicidad)."""
     db.execute(text("""

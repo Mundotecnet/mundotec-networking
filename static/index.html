@@ -1798,7 +1798,7 @@ async function cdDelete(connId,roomId){
 
 async function dlAuth(url, filename){
   try{
-    const token=localStorage.getItem('token');
+    const token=localStorage.getItem('mn_token');
     const resp=await fetch(API+url,{headers:{Authorization:'Bearer '+token}});
     if(!resp.ok){toast('Error al descargar: '+resp.status,'error');return;}
     const blob=await resp.blob();
@@ -3048,9 +3048,19 @@ async function reportesLoad(){
       <td>
         ${r.estado==='listo'?`<button class="btn btn-sm" onclick="dlAuth('/api/reportes/${r.id}/download','MundoTec_${r.tipo}_${r.id.substring(0,8)}.${r.formato}')">⬇ Descargar</button>`:''}
         ${r.estado==='error'?`<span title="${r.error||''}" style="font-size:10px;color:var(--danger);cursor:help">⚠ ver error</span>`:''}
+        <button class="btn btn-danger btn-sm" onclick="reportesBorrar('${r.id}')" title="Eliminar reporte">🗑️</button>
       </td>
     </tr>
   `).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3)">Sin reportes generados</td></tr>';
+}
+
+async function reportesBorrar(id){
+  if(!confirm('¿Eliminar este reporte del historial? El archivo también será borrado.')) return;
+  try{
+    await api('DELETE',`/api/reportes/${id}`);
+    toast('Reporte eliminado','success');
+    reportesLoad();
+  }catch(e){ toast(e.message||'Error al eliminar','error'); }
 }
 
 async function reportesGenerar(){
