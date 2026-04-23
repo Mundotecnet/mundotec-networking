@@ -17,15 +17,24 @@ LABEL_FULL     = re.compile(r"^[0-9][A-Z]-[A-Z]-[A-Z][0-9]{2}$")
 LABEL_EXTENDED = re.compile(r"^[0-9]-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[0-9]{2}$")
 
 
-def _generate_label(pp: models.PatchPanel, number: int) -> str:
+def _generate_label(pp: models.PatchPanel, number: int, client_fmt: str = None) -> str:
     n = f"{number:02d}"
-    if pp.format == "extended":
+    fmt = client_fmt or pp.format or "simple"
+    if fmt == "edificio_cuarto_rack":
+        # EDIFICIO-CUARTO-RACK-PANEL-00
+        edificio = pp.building or "A"
+        cuarto = pp.room_letter or "A"
+        rack = pp.rack_id or "A"
+        panel = pp.panel_letter or "A"
+        return f"{edificio}-{cuarto}-{rack}-{panel}-{n}"
+    if fmt == "extended":
         return (
             f"{pp.floor}-{pp.building or 'A'}-{pp.room_letter}-"
             f"{pp.rack_id or 'A'}-{pp.panel_letter}-{n}"
         )
-    if pp.format == "full":
+    if fmt == "full":
         return f"{pp.floor}{pp.room_letter}-{pp.building or 'A'}-{pp.panel_letter}{n}"
+    # simple (default)
     return f"{pp.floor}{pp.room_letter}-{pp.panel_letter}{n}"
 
 
@@ -220,3 +229,34 @@ def list_ports(pp_id: int, db: Session = Depends(get_db),
         port.completeness_status = evaluate_port(port, room_has_switch)
     db.commit()
     return pp.ports
+
+
+@router.post("/patch-panels/{pp_id}/regenerate-labels")
+def regenerate_labels(
+    pp_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_editor),
+):
+    pp = db.query(models.PatchPanel).filter(models.PatchPanel.id == pp_id).first()
+    if not pp:
+        raise HTTPException(status_code=404, detail="Patch panel no encontrado")
+
+    # Get client label_format
+    room = db.query(models.Room).filter(models.Room.id == pp.room_id).first()
+    client = db.query(models.Client).filter(models.Client.id == room.client_id).first() if room else None
+    client_fmt = client.label_format if client and client.label_format else None
+
+    updated = 0
+    for port in pp.ports:
+        new_label = _generate_label(pp, port.number, client_fmt)
+        if port.label != new_label:
+            port.label = new_label
+            updated += 1
+
+    db.commit()
+    audit_svc.log(db, "REGENERATE_LABELS", "patch_panel", entity_id=pp.id,
+                  entity_label=pp.name, client_id=room.client_id if room else None,
+                  user=current_user, request=request,
+                  new_values={"format": client_fmt, "updated": updated})
+    return {"updated": updated, "format": client_fmt or pp.format, "panel": pp.name}

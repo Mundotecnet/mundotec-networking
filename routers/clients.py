@@ -14,6 +14,9 @@ from services.pdf_generator import generate_client_report
 router = APIRouter()
 
 
+LABEL_FORMATS = {"simple", "full", "extended", "edificio_cuarto_rack"}
+
+
 class ClientCreate(BaseModel):
     name: str
     phone: Optional[str] = None
@@ -21,6 +24,7 @@ class ClientCreate(BaseModel):
     address: Optional[str] = None
     contact: Optional[str] = None
     notes: Optional[str] = None
+    label_format: Optional[str] = "edificio_cuarto_rack"
 
 
 class ClientUpdate(BaseModel):
@@ -30,6 +34,7 @@ class ClientUpdate(BaseModel):
     address: Optional[str] = None
     contact: Optional[str] = None
     notes: Optional[str] = None
+    label_format: Optional[str] = None
 
 
 class ClientOut(BaseModel):
@@ -40,6 +45,7 @@ class ClientOut(BaseModel):
     address: Optional[str]
     contact: Optional[str]
     notes: Optional[str]
+    label_format: Optional[str] = "edificio_cuarto_rack"
 
     model_config = {"from_attributes": True}
 

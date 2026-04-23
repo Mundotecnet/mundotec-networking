@@ -47,6 +47,7 @@ class Client(Base):
     address = Column(Text, nullable=True)
     contact = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
+    label_format = Column(String(30), default="edificio_cuarto_rack", nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     rooms = relationship("Room", back_populates="client", cascade="all, delete-orphan", lazy="select")

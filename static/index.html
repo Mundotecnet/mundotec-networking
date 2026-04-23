@@ -1473,6 +1473,15 @@ async function ppRowSave(portId, ppId, roomId){
   }
 }
 
+async function ppRegenerarEtiquetas(ppId, roomId){
+  if(!confirm('¿Regenerar etiquetas de este panel según el formato configurado en el cliente?\nSe sobreescribirán todas las etiquetas actuales.')) return;
+  try{
+    const res = await api('POST',`/api/patch-panels/${ppId}/regenerate-labels`);
+    toast(`✓ ${res.updated} etiquetas regeneradas (formato: ${res.format})`, 'success');
+    loadRoomTabPasivos(roomId);
+  }catch(e){ toast(e.message||'Error al regenerar etiquetas','error'); }
+}
+
 function togglePPView(ppId, roomId){
   ppViewModes[ppId] = ppViewModes[ppId]==='list' ? 'grid' : 'list';
   const ports = ppPortsCache[ppId]||[];
@@ -1522,6 +1531,7 @@ async function loadRoomTabPasivos(roomId){
           </div>
           <div class="actions">
             <button id="pp-view-btn-${pp.id}" class="btn btn-secondary btn-sm" onclick="togglePPView(${pp.id},${roomId})">${isGrid?'☰ Lista':'⊞ Grilla'}</button>
+            <button class="btn btn-secondary btn-sm" title="Re-generar etiquetas" onclick="ppRegenerarEtiquetas(${pp.id},${roomId})">🏷️</button>
             <button class="btn btn-secondary btn-sm" onclick="openModal('patch_panel',${pp.id})">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="delItem('patch_panel',${pp.id},'${pp.name.replace(/'/g,"\\'")}',()=>loadRoomTabPasivos(${roomId}))">🗑️</button>
           </div>
@@ -2213,10 +2223,29 @@ const MODALS={
         </div>
         <div class="fgroup"><label>Dirección</label><input id="f-address" value="${d.address||''}"></div>
         <div class="fgroup"><label>Contacto</label><input id="f-contact" value="${d.contact||''}"></div>
-        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
+        <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>
+        <div class="fgroup" style="margin-top:12px">
+          <label style="font-weight:600">Formato de etiqueta de puertos</label>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Define cómo se generan las etiquetas en los patch panels de este cliente</div>
+          ${[
+            {val:'edificio_cuarto_rack', label:'Estándar', desc:'EDIFICIO-CUARTO-RACK-PANEL-00', preview:'A-A-A-A-01'},
+            {val:'extended',             label:'Extendido', desc:'PISO-EDIFICIO-CUARTO-RACK-PANEL-00', preview:'1-A-A-A-A-01'},
+            {val:'full',                 label:'Full',      desc:'PISO+CUARTO-EDIFICIO-PANEL+00', preview:'1A-A-B01'},
+            {val:'simple',               label:'Simple',    desc:'PISO+CUARTO-PANEL+00', preview:'1A-A01'},
+          ].map(f=>`
+            <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:5px;cursor:pointer;${(d.label_format||'edificio_cuarto_rack')===f.val?'border-color:var(--primary);background:var(--bg3)':''}">
+              <input type="radio" name="f-label-format" value="${f.val}" ${(d.label_format||'edificio_cuarto_rack')===f.val?'checked':''} style="accent-color:var(--primary)">
+              <div>
+                <div style="font-weight:600;font-size:12px">${f.label} <code style="font-size:10px;color:var(--primary);margin-left:4px">${f.preview}</code></div>
+                <div style="font-size:10px;color:var(--text3)">${f.desc}</div>
+              </div>
+            </label>
+          `).join('')}
+        </div>`;
     },
     collect:()=>({name:v('f-name'),phone:v('f-phone')||null,email:v('f-email')||null,
-      address:v('f-address')||null,contact:v('f-contact')||null,notes:v('f-notes')||null}),
+      address:v('f-address')||null,contact:v('f-contact')||null,notes:v('f-notes')||null,
+      label_format:document.querySelector('input[name="f-label-format"]:checked')?.value||'edificio_cuarto_rack'}),
     save:(id,d)=>id?api('PUT',`/api/clients/${id}`,d):api('POST','/api/clients',d),
     reload:()=>{loadClients();if(currentClientId)openClientDetail(currentClientId,'');}
   },
