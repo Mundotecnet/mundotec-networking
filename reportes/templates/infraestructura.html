@@ -36,9 +36,15 @@ Incluye {{ total_sitios }} sitio(s), {{ total_equipos }} equipo(s) activo(s) y l
 {% if sitio.vlans %}
 <h2>VLANs</h2>
 <table>
-  <tr><th>ID</th><th>Nombre</th></tr>
+  <tr><th>ID</th><th>Nombre</th><th>Subred</th><th>Gateway</th><th>DHCP</th></tr>
   {% for v in sitio.vlans %}
-  <tr><td><strong>{{ v.vlan_id }}</strong></td><td>{{ v.nombre }}</td></tr>
+  <tr>
+    <td><strong>{{ v.vlan_id }}</strong></td>
+    <td>{{ v.nombre }}</td>
+    <td><code>{{ v.cidr or '—' }}</code></td>
+    <td><code>{{ v.gateway or '—' }}</code></td>
+    <td>{{ '✓' if v.dhcp else '—' }}</td>
+  </tr>
   {% endfor %}
 </table>
 {% endif %}
@@ -57,15 +63,16 @@ Incluye {{ total_sitios }} sitio(s), {{ total_equipos }} equipo(s) activo(s) y l
 {% if sitio.equipos %}
 <h2>Equipos de Red</h2>
 <table>
-  <tr><th>Nombre</th><th>Tipo</th><th>Marca / Modelo</th><th>IP Gestión</th><th>Cuarto</th><th>Estado</th></tr>
+  <tr><th>Nombre</th><th>Tipo</th><th>Marca / Modelo</th><th>IP Gestión</th><th>MAC</th><th>S/N</th><th>Cuarto</th></tr>
   {% for eq in sitio.equipos %}
   <tr>
     <td><strong>{{ eq.nombre }}</strong></td>
     <td>{{ eq.tipo }}</td>
     <td>{{ eq.marca or '—' }} {{ eq.modelo or '' }}</td>
     <td><code>{{ eq.ip_gestion or '—' }}</code></td>
+    <td><code>{{ eq.mac or '—' }}</code></td>
+    <td>{{ eq.serial or '—' }}</td>
     <td>{{ eq.cuarto_nombre or '—' }}</td>
-    <td><span class="badge {% if eq.estado == 'activo' %}badge-ok{% elif eq.estado == 'falla' %}badge-danger{% else %}badge-neutral{% endif %}">{{ eq.estado or 'activo' }}</span></td>
   </tr>
   {% endfor %}
 </table>
