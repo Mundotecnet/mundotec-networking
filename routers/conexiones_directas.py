@@ -16,6 +16,8 @@ ACTIVO_RED_TYPES = {"switch", "router", "firewall", "ap", "servidor", "ups"}
 class DirectConnCreate(BaseModel):
     port_a_id: int
     port_b_id: int
+    vlan_a_id: Optional[int] = None
+    vlan_b_id: Optional[int] = None
     cable_type: Optional[str] = None
     notes: Optional[str] = None
 
@@ -49,6 +51,8 @@ class DirectConnOut(BaseModel):
     port_a_number: str
     port_a_label: Optional[str]
     port_a_mode: Optional[str]
+    vlan_a_id: Optional[int]
+    vlan_a_name: Optional[str]
     device_b_id: int
     device_b_name: str
     device_b_type: str
@@ -56,6 +60,8 @@ class DirectConnOut(BaseModel):
     port_b_number: str
     port_b_label: Optional[str]
     port_b_mode: Optional[str]
+    vlan_b_id: Optional[int]
+    vlan_b_name: Optional[str]
 
 
 def _build_out(db: Session, c: models.Connection) -> DirectConnOut:
@@ -72,6 +78,9 @@ def _build_out(db: Session, c: models.Connection) -> DirectConnOut:
         except Exception:
             pass
 
+    va = db.query(models.Vlan).filter(models.Vlan.id == pa.vlan_id).first() if pa and pa.vlan_id else None
+    vb = db.query(models.Vlan).filter(models.Vlan.id == pb.vlan_id).first() if pb and pb.vlan_id else None
+
     return DirectConnOut(
         id=c.id,
         room_id=c.room_id,
@@ -84,6 +93,8 @@ def _build_out(db: Session, c: models.Connection) -> DirectConnOut:
         port_a_number=pa.port_number if pa else "?",
         port_a_label=pa.port_label if pa else None,
         port_a_mode=pa.port_mode if pa else None,
+        vlan_a_id=va.id if va else None,
+        vlan_a_name=f"VLAN {va.vlan_id} {va.name}" if va else None,
         device_b_id=db_.id if db_ else 0,
         device_b_name=db_.name if db_ else "?",
         device_b_type=db_.device_type if db_ else "?",
@@ -91,6 +102,8 @@ def _build_out(db: Session, c: models.Connection) -> DirectConnOut:
         port_b_number=pb.port_number if pb else "?",
         port_b_label=pb.port_label if pb else None,
         port_b_mode=pb.port_mode if pb else None,
+        vlan_b_id=vb.id if vb else None,
+        vlan_b_name=f"VLAN {vb.vlan_id} {vb.name}" if vb else None,
     )
 
 
@@ -209,6 +222,10 @@ def create_direct_connection(
 
     pa.status = "ocupado"
     pb.status = "ocupado"
+    if payload.vlan_a_id:
+        pa.vlan_id = payload.vlan_a_id
+    if payload.vlan_b_id:
+        pb.vlan_id = payload.vlan_b_id
 
     db.commit()
     db.refresh(c)
