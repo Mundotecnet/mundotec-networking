@@ -1482,6 +1482,16 @@ async function ppRegenerarEtiquetas(ppId, roomId){
   }catch(e){ toast(e.message||'Error al regenerar etiquetas','error'); }
 }
 
+function lfSelect(val){
+  document.querySelectorAll('#lf-container > div[id^="lf-opt-"]').forEach(el=>{
+    const isSelected = el.id === 'lf-opt-'+val;
+    el.style.borderColor = isSelected ? 'var(--primary)' : 'var(--border)';
+    el.style.background  = isSelected ? 'var(--bg3)' : 'transparent';
+    const radio = el.querySelector('input[type=radio]');
+    if(radio) radio.checked = isSelected;
+  });
+}
+
 function togglePPView(ppId, roomId){
   ppViewModes[ppId] = ppViewModes[ppId]==='list' ? 'grid' : 'list';
   const ports = ppPortsCache[ppId]||[];
@@ -2227,20 +2237,23 @@ const MODALS={
         <div class="fgroup" style="margin-top:12px">
           <label style="font-weight:600">Formato de etiqueta de puertos</label>
           <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Define cómo se generan las etiquetas en los patch panels de este cliente</div>
+          <div id="lf-container">
           ${[
-            {val:'edificio_cuarto_rack', label:'Estándar', desc:'EDIFICIO-CUARTO-RACK-PANEL-00', preview:'A-A-A-A-01'},
+            {val:'edificio_cuarto_rack', label:'Estándar',  desc:'EDIFICIO-CUARTO-RACK-PANEL-00',     preview:'A-A-A-A-01'},
             {val:'extended',             label:'Extendido', desc:'PISO-EDIFICIO-CUARTO-RACK-PANEL-00', preview:'1-A-A-A-A-01'},
-            {val:'full',                 label:'Full',      desc:'PISO+CUARTO-EDIFICIO-PANEL+00', preview:'1A-A-B01'},
-            {val:'simple',               label:'Simple',    desc:'PISO+CUARTO-PANEL+00', preview:'1A-A01'},
-          ].map(f=>`
-            <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:5px;cursor:pointer;${(d.label_format||'edificio_cuarto_rack')===f.val?'border-color:var(--primary);background:var(--bg3)':''}">
-              <input type="radio" name="f-label-format" value="${f.val}" ${(d.label_format||'edificio_cuarto_rack')===f.val?'checked':''} style="accent-color:var(--primary)">
+            {val:'full',                 label:'Full',      desc:'PISO+CUARTO-EDIFICIO-PANEL+00',      preview:'1A-A-B01'},
+            {val:'simple',               label:'Simple',    desc:'PISO+CUARTO-PANEL+00',               preview:'1A-A01'},
+          ].map(f=>{
+            const sel=(d.label_format||'edificio_cuarto_rack')===f.val;
+            return `<div id="lf-opt-${f.val}" onclick="lfSelect('${f.val}')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:2px solid ${sel?'var(--primary)':'var(--border)'};border-radius:var(--radius);margin-bottom:5px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'}">
+              <input type="radio" name="f-label-format" value="${f.val}" ${sel?'checked':''} style="accent-color:var(--primary);pointer-events:none">
               <div>
                 <div style="font-weight:600;font-size:12px">${f.label} <code style="font-size:10px;color:var(--primary);margin-left:4px">${f.preview}</code></div>
                 <div style="font-size:10px;color:var(--text3)">${f.desc}</div>
               </div>
-            </label>
-          `).join('')}
+            </div>`;
+          }).join('')}
+          </div>
         </div>`;
     },
     collect:()=>({name:v('f-name'),phone:v('f-phone')||null,email:v('f-email')||null,
