@@ -1,51 +1,118 @@
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><title>{{ titulo }}</title>
-<link rel="stylesheet" href="estilos.css"></head>
+<link rel="stylesheet" href="estilos.css">
+<style>
+.traza-table { width:100%; border-collapse:collapse; font-size:8pt; margin-bottom:12pt; }
+.traza-table th {
+  background:var(--navy); color:#fff; padding:5pt 6pt;
+  text-align:left; font-weight:600; font-size:7.5pt;
+  border:1px solid var(--deep-blue);
+}
+.traza-table td { padding:4pt 6pt; border:1px solid var(--border); vertical-align:top; }
+.traza-table tr:nth-child(even) td { background:#F8FAFC; }
+.estado-completo  { background:#DCFCE7; color:#166534; border-radius:3pt; padding:1pt 4pt; font-size:7pt; font-weight:600; }
+.estado-parcial   { background:#FEF9C3; color:#854D0E; border-radius:3pt; padding:1pt 4pt; font-size:7pt; font-weight:600; }
+.estado-sinrev    { background:#F1F5F9; color:#475569; border-radius:3pt; padding:1pt 4pt; font-size:7pt; font-weight:600; }
+.arrow { color:var(--teal); font-weight:700; }
+.panel-header {
+  background:var(--deep-blue); color:#fff;
+  padding:5pt 8pt; margin:10pt 0 4pt 0;
+  border-radius:3pt; font-size:9pt; font-weight:600;
+}
+.cuarto-header {
+  background:var(--teal); color:#fff;
+  padding:4pt 8pt; margin:14pt 0 6pt 0;
+  font-size:10pt; font-weight:700; letter-spacing:.3pt;
+}
+.edificio-title {
+  color:var(--navy); border-bottom:2pt solid var(--amber);
+  padding-bottom:4pt; margin:18pt 0 8pt 0; font-size:13pt; font-weight:700;
+}
+.sin-datos { color:#94A3B8; font-style:italic; font-size:8pt; padding:4pt 0; }
+code { font-family:Consolas,monospace; font-size:8pt; }
+</style>
+</head>
 <body>
 
 {% include 'partials/portada.html' %}
 
-<h1>Trazabilidad de Endpoints</h1>
-<p>Este informe documenta la traza hop-by-hop de los endpoints de <strong>{{ cliente_nombre }}</strong>.</p>
+<h1>Trazabilidad de Infraestructura</h1>
+<p>Mapa de conexiones patch panel → switch para <strong>{{ cliente_nombre }}</strong>.</p>
 
-{% for ep in endpoints %}
-<div class="avoid-break" style="margin-top:20px">
-<h2>{{ ep.nombre }}</h2>
-<div class="kpi-grid" style="margin-bottom:10px">
-  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.tipo }}</div><div class="kpi-lbl">Tipo</div></div>
-  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.ip or '—' }}</div><div class="kpi-lbl">IP</div></div>
-  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">{{ ep.sitio_nombre or '—' }}</div><div class="kpi-lbl">Sitio</div></div>
-  <div class="kpi-box"><div class="kpi-num" style="font-size:13pt">
-    <span class="badge {% if ep.estado_global == 'verde' %}badge-ok{% elif ep.estado_global == 'rojo' %}badge-danger{% else %}badge-warn{% endif %}">
-      {{ ep.estado_global | upper }}
-    </span>
-  </div><div class="kpi-lbl">Estado</div></div>
+<!-- KPIs -->
+<div class="kpi-grid" style="margin:12pt 0 18pt 0">
+  <div class="kpi-box"><div class="kpi-num">{{ total }}</div><div class="kpi-lbl">Total Puertos</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="color:var(--success)">{{ con_switch }}</div><div class="kpi-lbl">Con Switch</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="color:#94A3B8">{{ sin_switch }}</div><div class="kpi-lbl">Sin Switch</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="color:var(--amber)">{{ parciales }}</div><div class="kpi-lbl">Parciales</div></div>
+  <div class="kpi-box"><div class="kpi-num" style="color:#94A3B8">{{ sin_revisar }}</div><div class="kpi-lbl">Sin Revisar</div></div>
 </div>
 
-{% if ep.hops %}
-<h3>Traza hop-by-hop</h3>
-{% for h in ep.hops %}
-{% if h.tipo in ['cable', 'jumper', 'empalme_fibra'] %}
-<div class="hop-connector">↕ {{ h.label }} {{ h.detalle or '' }}</div>
-{% else %}
-<div class="hop-row">
-  <div class="hop-dot {{ h.estado or 'verde' }}"></div>
-  <div>
-    <span class="hop-label">{{ h.label }}</span>
-    <span class="hop-tipo">[{{ h.tipo }}]</span>
-    {% if h.detalle %}<div class="hop-detalle">{{ h.detalle }}</div>{% endif %}
-  </div>
+<div class="page-break"></div>
+
+{% for edificio in edificios %}
+<div class="edificio-title">🏢 {{ edificio.nombre }}</div>
+
+{% for cuarto in edificio.cuartos %}
+<div class="cuarto-header">📦 {{ cuarto.nombre }}</div>
+
+{% for panel in cuarto.paneles %}
+<div class="panel-header">
+  🔌 Panel: {{ panel.nombre }}
+  &nbsp;·&nbsp; {{ panel.total }} puertos
+  &nbsp;·&nbsp; {{ panel.con_switch }} con switch asignado
 </div>
-{% endif %}
-{% endfor %}
+
+{% if panel.puertos %}
+<table class="traza-table">
+  <thead>
+    <tr>
+      <th style="width:28pt">#</th>
+      <th style="width:80pt">Etiqueta</th>
+      <th>Descripción / Nodo</th>
+      <th style="width:70pt">IP</th>
+      <th style="width:80pt">MAC</th>
+      <th style="width:50pt">Estado</th>
+      <th style="width:18pt" class="arrow">→</th>
+      <th>Switch · Puerto</th>
+      <th style="width:60pt">VLAN</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in panel.puertos %}
+  <tr>
+    <td style="text-align:center;font-weight:600">{{ p.numero }}</td>
+    <td><code>{{ p.etiqueta }}</code></td>
+    <td>{{ p.descripcion }}</td>
+    <td><code>{{ p.ip }}</code></td>
+    <td><code>{{ p.mac }}</code></td>
+    <td>
+      {% if p.estado == 'completo' %}
+        <span class="estado-completo">COMPLETO</span>
+      {% elif p.estado == 'parcial' %}
+        <span class="estado-parcial">PARCIAL</span>
+      {% else %}
+        <span class="estado-sinrev">SIN REV.</span>
+      {% endif %}
+    </td>
+    <td class="arrow" style="text-align:center">{% if p.sw_destino != '—' %}→{% endif %}</td>
+    <td>{% if p.sw_destino != '—' %}<strong>{{ p.sw_destino }}</strong>{% else %}<span style="color:#94A3B8">—</span>{% endif %}</td>
+    <td style="font-size:7pt;color:#475569">{{ p.vlan }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 {% else %}
-<div class="alerta alerta-media">Sin traza documentada para este endpoint.</div>
+<p class="sin-datos">Sin puertos registrados en este panel.</p>
 {% endif %}
-<p style="font-size:8pt;color:#6B7280;margin-top:6px">{{ ep.resumen or '' }}</p>
-</div>
+
+{% endfor %}{# paneles #}
+{% endfor %}{# cuartos #}
+
 {% if not loop.last %}<div class="page-break"></div>{% endif %}
-{% endfor %}
+{% endfor %}{# edificios #}
 
 {% include 'partials/firma.html' %}
-</body></html>
+</body>
+</html>
