@@ -7,20 +7,31 @@
 </head>
 <body>
 
+<!-- Membrete corriendo en páginas 2+ -->
+<div class="running-header">
+  <div class="rh-inner">
+    <div class="rh-logo"><span class="logo-mundo">mundo</span><span class="logo-tec">tec</span></div>
+    <div style="text-align:right;font-size:8pt;color:#6B7280">
+      {{ titulo }}<br>
+      <strong style="color:#0D1B2A">{{ cliente_nombre | default('') }}</strong>
+    </div>
+  </div>
+</div>
+
 {% include 'partials/portada.html' %}
 
-<!-- Tabla de contenidos -->
 {% if secciones %}
 <h1>Contenido</h1>
 <div class="toc">
   {% for s in secciones %}
-  <div class="toc-item"><span><span class="toc-num">{{ loop.index }}.</span>{{ s }}</span></div>
+  <div class="toc-item">
+    <span><span class="toc-num">{{ loop.index }}.</span>{{ s }}</span>
+  </div>
   {% endfor %}
 </div>
 <div class="page-break"></div>
 {% endif %}
 
-<!-- Contenido principal -->
 {% block contenido %}{% endblock %}
 
 {% include 'partials/firma.html' %}
