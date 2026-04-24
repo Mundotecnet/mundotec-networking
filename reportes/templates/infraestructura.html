@@ -4,6 +4,16 @@
 <link rel="stylesheet" href="estilos.css"></head>
 <body>
 
+<!-- Membrete corriendo — páginas 2+ -->
+<div class="running-header">
+  <div class="rh-inner">
+    <div class="rh-logo"><span class="logo-mundo">mundo</span><span class="logo-tec">tec</span></div>
+    <div style="text-align:right;line-height:1.4;font-size:8pt;color:#6B7280">
+      {{ titulo }}<br><strong style="color:#0D1B2A">{{ cliente_nombre }}</strong>
+    </div>
+  </div>
+</div>
+
 {% include 'partials/portada.html' %}
 
 <!-- Resumen ejecutivo -->
@@ -82,16 +92,20 @@ Incluye {{ total_sitios }} sitio(s), {{ total_equipos }} equipo(s) activo(s) y l
 <h2>Jerarquía Física</h2>
 {% for edif in sitio.edificios %}
 <h3>Edificio {{ edif.codigo }} — {{ edif.nombre }}</h3>
+{% if edif.cuartos %}
 <table>
   <tr><th>Cuarto</th><th>Piso</th><th>Gabinetes</th></tr>
   {% for c in edif.cuartos %}
   <tr>
     <td>{{ c.codigo }} · {{ c.nombre }}</td>
     <td>{{ c.piso }}</td>
-    <td>{{ c.gabinetes | map(attribute='nombre') | join(', ') or '—' }}</td>
+    <td>{{ c.gabinetes | map(attribute='nombre') | unique | join(', ') or '—' }}</td>
   </tr>
   {% endfor %}
 </table>
+{% else %}
+<p style="color:#6B7280;font-size:9pt;font-style:italic;margin:6px 0">Sin cuartos documentados en este edificio.</p>
+{% endif %}
 {% endfor %}
 {% endif %}
 
