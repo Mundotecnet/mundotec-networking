@@ -2275,18 +2275,6 @@ const MODALS={
           <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
           <div class="fgroup"><label>Ubicación</label><input id="f-location" value="${d.location||''}"></div>
         </div>
-        <hr class="divider"><div class="section-label">Switch principal</div>
-        <div class="form-row-3">
-          <div class="fgroup"><label>Modelo</label><input id="f-sw-model" value="${d.switch_model||''}"></div>
-          <div class="fgroup"><label>MAC</label><input id="f-sw-mac" value="${d.switch_mac||''}"></div>
-          <div class="fgroup"><label>IP</label><input id="f-sw-ip" value="${d.switch_ip||''}"></div>
-        </div>
-        <div class="section-label">Access Point</div>
-        <div class="form-row-3">
-          <div class="fgroup"><label>Modelo</label><input id="f-ap-model" value="${d.ap_model||''}"></div>
-          <div class="fgroup"><label>MAC</label><input id="f-ap-mac" value="${d.ap_mac||''}"></div>
-          <div class="fgroup"><label>IP</label><input id="f-ap-ip" value="${d.ap_ip||''}"></div>
-        </div>
         <div class="form-row">
           <div class="fgroup"><label>Formato etiqueta</label>
             <select id="f-format">
@@ -2301,8 +2289,6 @@ const MODALS={
       client_id:id?undefined:parseInt(v('f-client_id'))||extra?.client_id,
       building_id:id?undefined:(extra?.building_id||null),
       name:v('f-name'),location:v('f-location')||null,notes:v('f-notes')||null,
-      switch_model:v('f-sw-model')||null,switch_mac:v('f-sw-mac')||null,switch_ip:v('f-sw-ip')||null,
-      ap_model:v('f-ap-model')||null,ap_mac:v('f-ap-mac')||null,ap_ip:v('f-ap-ip')||null,
       patch_label_format:v('f-format'),
     }),
     save:(id,d)=>{
