@@ -2265,31 +2265,19 @@ const MODALS={
   room:{
     title:id=>id?'Editar cuarto':'Nuevo cuarto',
     fields:async(id,extra)=>{
-      let d={client_id:extra?.client_id,...{}};
+      let d={};
       if(id) d=await api('GET',`/api/rooms/${id}`)||{};
-      const clients=await api('GET','/api/clients')||[];
-      const cOpts=clients.map(c=>`<option value="${c.id}" ${d.client_id==c.id?'selected':''}>${c.name}</option>`).join('');
       return `
-        <div class="fgroup"><label>Cliente *</label><select id="f-client_id"><option value="">Selecciona…</option>${cOpts}</select></div>
         <div class="form-row">
           <div class="fgroup"><label>Nombre *</label><input id="f-name" value="${d.name||''}"></div>
           <div class="fgroup"><label>Ubicación</label><input id="f-location" value="${d.location||''}"></div>
         </div>
-        <div class="form-row">
-          <div class="fgroup"><label>Formato etiqueta</label>
-            <select id="f-format">
-              <option value="simple" ${(d.patch_label_format||'simple')==='simple'?'selected':''}>Simple (1A-A01)</option>
-              <option value="full" ${d.patch_label_format==='full'?'selected':''}>Full (1A-A-A01)</option>
-            </select>
-          </div>
-        </div>
         <div class="fgroup"><label>Notas</label><textarea id="f-notes">${d.notes||''}</textarea></div>`;
     },
     collect:(id,extra)=>({
-      client_id:id?undefined:parseInt(v('f-client_id'))||extra?.client_id,
+      client_id:id?undefined:extra?.client_id,
       building_id:id?undefined:(extra?.building_id||null),
       name:v('f-name'),location:v('f-location')||null,notes:v('f-notes')||null,
-      patch_label_format:v('f-format'),
     }),
     save:(id,d)=>{
       const {client_id,...rest}=d;
