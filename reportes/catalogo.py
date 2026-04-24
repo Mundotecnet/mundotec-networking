@@ -1,4 +1,4 @@
-"""Catálogo de los 6 tipos de informe — sub-tarea 2.2."""
+"""Catálogo de los 6 tipos de informe."""
 from .base import ReporteBase
 
 
@@ -17,9 +17,16 @@ class ReporteInfraestructura(ReporteBase):
         ctx["subtitulo"] = f"Sitios: {ctx['total_sitios']} · Equipos: {ctx['total_equipos']}"
         ctx["secciones"] = ["Resumen Ejecutivo"] + \
             [f"Sitio: {s['nombre']}" for s in ctx.get("sitios", [])] + \
-            (["Anexo A — Licencias"] if ctx.get("licencias") else []) + \
-            (["Anexo B — Credenciales"] if ctx.get("credenciales") else [])
+            (["Anexo A — Licencias"] if ctx.get("licencias") else [])
         return ctx
+
+    def _generar_xlsx(self, ctx: dict):
+        from reportes.render_xlsx import render_xlsx_infraestructura
+        from reportes.base import STORAGE
+        STORAGE.mkdir(parents=True, exist_ok=True)
+        out = STORAGE / f"{self.reporte_id}.xlsx"
+        render_xlsx_infraestructura(ctx, out)
+        return out
 
 
 class ReporteTrazabilidad(ReporteBase):
@@ -80,12 +87,11 @@ class ReporteInventario(ReporteBase):
     def generar(self):
         from reportes.base import STORAGE
         from reportes.render_xlsx import render_xlsx
-        from pathlib import Path
+        from datetime import datetime
         import yaml
         from reportes.base import BRANDING_FILE
         with open(BRANDING_FILE) as f:
             branding = yaml.safe_load(f)
-        from datetime import datetime
         STORAGE.mkdir(parents=True, exist_ok=True)
         ctx = self.construir_contexto()
         ctx["branding"] = branding
@@ -107,23 +113,23 @@ class ReportePostMortem(ReporteBase):
         ctx.update({
             "subtitulo": self.params.get("incidente_titulo", "Incidente sin título"),
             "incidente_titulo": self.params.get("incidente_titulo", "—"),
-            "inicio": self.params.get("inicio", "—"),
-            "duracion": self.params.get("duracion", "—"),
-            "impacto": self.params.get("impacto", "—"),
-            "severidad": self.params.get("severidad", "—"),
-            "rca": self.params.get("rca", "Por determinar."),
-            "remediacion": self.params.get("remediacion", "Por documentar."),
-            "accion_correctiva": self.params.get("accion_correctiva", "Por definir."),
-            "timeline": self.params.get("timeline", []),
+            "inicio":     self.params.get("inicio",     "—"),
+            "duracion":   self.params.get("duracion",   "—"),
+            "impacto":    self.params.get("impacto",    "—"),
+            "severidad":  self.params.get("severidad",  "—"),
+            "rca":        self.params.get("rca",        "Por determinar."),
+            "remediacion":        self.params.get("remediacion",        "Por documentar."),
+            "accion_correctiva":  self.params.get("accion_correctiva",  "Por definir."),
+            "timeline":           self.params.get("timeline", []),
         })
         return ctx
 
 
 CATALOGO = {
     "infraestructura": ReporteInfraestructura,
-    "trazabilidad": ReporteTrazabilidad,
-    "mantenimiento": ReporteMantenimiento,
-    "ejecutivo": ReporteEjecutivo,
-    "inventario": ReporteInventario,
-    "postmortem": ReportePostMortem,
+    "trazabilidad":    ReporteTrazabilidad,
+    "mantenimiento":   ReporteMantenimiento,
+    "ejecutivo":       ReporteEjecutivo,
+    "inventario":      ReporteInventario,
+    "postmortem":      ReportePostMortem,
 }
