@@ -143,33 +143,92 @@ def render_xlsx_infraestructura(ctx: dict, out: Path):
     ws3.auto_filter.ref = f"A3:{get_column_letter(len(cols3))}{ws3.max_row}"
     _auto_width(ws3)
 
-    # ── Hoja Patch Panels ─────────────────────────────────────────────────────
+    # ── Hoja Patch Panels — resumen + detalle de puertos ─────────────────────
     ws4 = wb.create_sheet("Patch Panels")
-    cols4 = ["Sitio", "Cuarto", "Panel", "Piso", "Marca", "Modelo",
-             "Total Puertos", "Documentados", "Sin Revisar", "Completos"]
-    _title_row(ws4, f"Patch Panels — {cliente}", len(cols4))
-    _meta_row(ws4, cliente, fecha, len(cols4))
-    ws4.append(cols4)
-    _hdr(ws4, ws4.max_row, len(cols4))
+    N_COLS4 = 13  # columnas del detalle de puertos
+
+    _title_row(ws4, f"Patch Panels — {cliente}", N_COLS4)
+    _meta_row(ws4, cliente, fecha, N_COLS4)
+
+    # Paleta de estados
+    COLOR_EST = {
+        "completo":    "D1FAE5",  # verde claro
+        "parcial":     "FEF3C7",  # amarillo claro
+        "sin_revisar": "FEE2E2",  # rojo claro
+    }
+    FONT_EST = {
+        "completo":    "15803D",
+        "parcial":     "92400E",
+        "sin_revisar": "991B1B",
+    }
+
+    cols_resumen = ["Sitio", "Cuarto", "Panel", "Piso", "Marca", "Modelo",
+                    "Total", "Documentados", "Sin Revisar", "Completos"]
+    cols_puertos = ["Sitio", "Cuarto", "Panel", "Puerto #", "Etiqueta",
+                    "Estado", "Tipo", "Descripción / Destino", "VLAN", "IP", "MAC", "Notas", "Completitud"]
 
     for s in sitios:
         for ed in s.get("edificios", []):
             for cuarto in ed.get("cuartos", []):
                 for pp in cuarto.get("paneles", []):
-                    _data_row(ws4, [
-                        s["nombre"],
-                        cuarto.get("nombre", "—"),
-                        pp.get("nombre", "—"),
-                        pp.get("piso", "—"),
-                        pp.get("marca", "—"),
-                        pp.get("modelo", "—"),
-                        pp.get("total_puertos", 0),
-                        pp.get("documentados", 0),
-                        pp.get("sin_revisar",  0),
-                        pp.get("completos",    0),
-                    ])
-    ws4.auto_filter.ref = f"A3:{get_column_letter(len(cols4))}{ws4.max_row}"
-    _auto_width(ws4)
+                    # ── Bloque encabezado del panel ──────────────────────────
+                    ws4.append([])  # separador
+
+                    # Fila título del panel
+                    panel_title = (f"Panel: {pp.get('nombre','—')}   "
+                                   f"│  Cuarto: {cuarto.get('nombre','—')}   "
+                                   f"│  Sitio: {s['nombre']}   "
+                                   f"│  Piso: {pp.get('piso','—')}   "
+                                   f"│  {pp.get('marca','—')} {pp.get('modelo','—')}   "
+                                   f"│  {pp.get('total_puertos',0)} puertos")
+                    ws4.append([panel_title] + [""] * (N_COLS4 - 1))
+                    ws4.merge_cells(start_row=ws4.max_row, start_column=1,
+                                    end_row=ws4.max_row, end_column=N_COLS4)
+                    hdr_cell = ws4.cell(row=ws4.max_row, column=1)
+                    hdr_cell.fill = PatternFill("solid", fgColor=NAVY)
+                    hdr_cell.font = Font(bold=True, color="FFFFFF", name="Arial", size=9)
+                    hdr_cell.alignment = Alignment(horizontal="left", vertical="center")
+                    ws4.row_dimensions[ws4.max_row].height = 16
+
+                    # Fila sub-header columnas
+                    ws4.append(cols_puertos)
+                    _hdr(ws4, ws4.max_row, N_COLS4, NARANJA)
+
+                    # ── Filas de puertos ─────────────────────────────────────
+                    for pt in pp.get("puertos", []):
+                        estado = pt.get("estado", "sin_revisar")
+                        vals = [
+                            s["nombre"],
+                            cuarto.get("nombre", "—"),
+                            pp.get("nombre", "—"),
+                            pt.get("numero", "—"),
+                            pt.get("etiqueta", "—"),
+                            estado,
+                            pt.get("tipo_nodo", "—"),
+                            pt.get("descripcion", "—"),
+                            pt.get("vlan", "—"),
+                            pt.get("ip", "—"),
+                            pt.get("mac", "—"),
+                            pt.get("notas", "—"),
+                            pt.get("completitud", "—"),
+                        ]
+                        ws4.append(vals)
+                        row = ws4.max_row
+                        for col in range(1, N_COLS4 + 1):
+                            c = ws4.cell(row=row, column=col)
+                            c.font = Font(name="Arial", size=9)
+                            c.alignment = Alignment(vertical="center", wrap_text=False)
+                        # Color según estado en columna "Estado" (col 6)
+                        bg = COLOR_EST.get(estado, "FFFFFF")
+                        fg = FONT_EST.get(estado, "111827")
+                        ec = ws4.cell(row=row, column=6)
+                        ec.fill = PatternFill("solid", fgColor=bg)
+                        ec.font = Font(name="Arial", size=9, bold=True, color=fg)
+
+    # Anchos fijos por columna (puertos tienen texto largo)
+    anchos = [12, 14, 8, 9, 12, 12, 12, 40, 18, 16, 20, 20, 12]
+    for i, w in enumerate(anchos, 1):
+        ws4.column_dimensions[get_column_letter(i)].width = w
 
     # ── Hoja Licencias ────────────────────────────────────────────────────────
     licencias = ctx.get("licencias", [])

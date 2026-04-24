@@ -63,6 +63,40 @@ def construir(db, cliente_id, sitios="all", incluir_credenciales=False) -> dict:
                 total = sum(cmap.values())
                 # Documentados = tienen algún dato (parcial o completo)
                 documentados = total - cmap.get("sin_revisar", 0)
+
+                # Detalle de puertos
+                puertos_raw = db.execute(text("""
+                    SELECT pt.number, pt.label, pt.status, pt.completeness_status,
+                           pt.node_type, pt.node_description, pt.node_mac, pt.node_ip,
+                           pt.notes,
+                           v.vlan_id  AS vlan_num, v.name AS vlan_nombre,
+                           d.name     AS device_nombre
+                    FROM patch_ports pt
+                    LEFT JOIN vlans   v ON v.id = pt.vlan_id
+                    LEFT JOIN devices d ON d.id = pt.device_id
+                    WHERE pt.patch_panel_id = :ppid
+                    ORDER BY pt.number
+                """), {"ppid": pp["id"]}).mappings().all()
+
+                puertos = []
+                for pt in puertos_raw:
+                    # Descripción efectiva: device_nombre tiene prioridad, luego node_description
+                    descripcion = (pt["device_nombre"] or pt["node_description"] or "—")
+                    vlan_txt = (f"VLAN {pt['vlan_num']} {pt['vlan_nombre']}"
+                                if pt["vlan_num"] else "—")
+                    puertos.append({
+                        "numero":      pt["number"],
+                        "etiqueta":    pt["label"] or "—",
+                        "estado":      pt["status"],
+                        "completitud": pt["completeness_status"],
+                        "tipo_nodo":   pt["node_type"] or "—",
+                        "descripcion": descripcion,
+                        "mac":         pt["node_mac"] or "—",
+                        "ip":          pt["node_ip"] or "—",
+                        "vlan":        vlan_txt,
+                        "notas":       pt["notes"] or "—",
+                    })
+
                 panel_list.append({
                     "nombre":        pp["name"] or "—",
                     "panel_letter":  pp["panel_letter"] or "—",
@@ -74,6 +108,7 @@ def construir(db, cliente_id, sitios="all", incluir_credenciales=False) -> dict:
                     "documentados":  documentados,
                     "sin_revisar":   cmap.get("sin_revisar", 0),
                     "completos":     cmap.get("completo",    0),
+                    "puertos":       puertos,
                 })
 
             cuarto_list.append({
