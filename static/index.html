@@ -1550,7 +1550,7 @@ async function loadRoomTabPasivos(roomId){
         <div id="pp-ports-${pp.id}">${portsHtml}</div>
       </div>`;
     }
-    if(!(panels||[]).length) html='<div class="empty">Sin patch panels. Agrega el primero.</div>';
+    if(!(panels||[]).length) html+='<div class="empty">Sin patch panels. Agrega el primero.</div>';
     el.innerHTML=html;
   }catch(e){el.innerHTML=`<div class="empty">${e.message}</div>`;}
 }
