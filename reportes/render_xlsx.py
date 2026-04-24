@@ -145,7 +145,8 @@ def render_xlsx_infraestructura(ctx: dict, out: Path):
 
     # ── Hoja Patch Panels ─────────────────────────────────────────────────────
     ws4 = wb.create_sheet("Patch Panels")
-    cols4 = ["Sitio", "Cuarto", "Panel", "Puertos Total", "Completitud %"]
+    cols4 = ["Sitio", "Cuarto", "Panel", "Piso", "Marca", "Modelo",
+             "Total Puertos", "Documentados", "Sin Revisar", "Completos"]
     _title_row(ws4, f"Patch Panels — {cliente}", len(cols4))
     _meta_row(ws4, cliente, fecha, len(cols4))
     ws4.append(cols4)
@@ -154,13 +155,20 @@ def render_xlsx_infraestructura(ctx: dict, out: Path):
     for s in sitios:
         for ed in s.get("edificios", []):
             for cuarto in ed.get("cuartos", []):
-                _data_row(ws4, [
-                    s["nombre"],
-                    cuarto.get("nombre", "—"),
-                    "—",
-                    24,
-                    "—",
-                ])
+                for pp in cuarto.get("paneles", []):
+                    _data_row(ws4, [
+                        s["nombre"],
+                        cuarto.get("nombre", "—"),
+                        pp.get("nombre", "—"),
+                        pp.get("piso", "—"),
+                        pp.get("marca", "—"),
+                        pp.get("modelo", "—"),
+                        pp.get("total_puertos", 0),
+                        pp.get("documentados", 0),
+                        pp.get("sin_revisar",  0),
+                        pp.get("completos",    0),
+                    ])
+    ws4.auto_filter.ref = f"A3:{get_column_letter(len(cols4))}{ws4.max_row}"
     _auto_width(ws4)
 
     # ── Hoja Licencias ────────────────────────────────────────────────────────

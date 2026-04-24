@@ -48,11 +48,40 @@ def construir(db, cliente_id, sitios="all", incluir_credenciales=False) -> dict:
                 SELECT name, rack_units FROM cabinets WHERE room_id=:rid ORDER BY name
             """), {"rid": rid}).mappings().all()
 
+            # Patch panels del cuarto con conteo real de puertos
+            panels_raw = db.execute(text("""
+                SELECT id, name, panel_letter, floor, brand, model, format
+                FROM patch_panels WHERE room_id=:rid ORDER BY name
+            """), {"rid": rid}).mappings().all()
+            panel_list = []
+            for pp in panels_raw:
+                counts = db.execute(text("""
+                    SELECT status, COUNT(*) AS cnt
+                    FROM patch_ports WHERE patch_panel_id=:ppid GROUP BY status
+                """), {"ppid": pp["id"]}).mappings().all()
+                cmap = {r["status"]: r["cnt"] for r in counts}
+                total = sum(cmap.values())
+                # Documentados = tienen algún dato (parcial o completo)
+                documentados = total - cmap.get("sin_revisar", 0)
+                panel_list.append({
+                    "nombre":        pp["name"] or "—",
+                    "panel_letter":  pp["panel_letter"] or "—",
+                    "piso":          str(pp["floor"] or "—"),
+                    "marca":         pp["brand"] or "—",
+                    "modelo":        pp["model"] or "—",
+                    "formato":       pp["format"] or "—",
+                    "total_puertos": total,
+                    "documentados":  documentados,
+                    "sin_revisar":   cmap.get("sin_revisar", 0),
+                    "completos":     cmap.get("completo",    0),
+                })
+
             cuarto_list.append({
                 "codigo": rm["letter"] or rm["name"][:3].upper(),
                 "nombre": rm["name"],
                 "piso": rm["location"] or "—",
                 "gabinetes": [{"nombre": g["name"]} for g in gabs],
+                "paneles": panel_list,
             })
 
             # Equipos del cuarto (activos de red primero)
